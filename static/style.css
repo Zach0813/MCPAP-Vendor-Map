@@ -1,0 +1,761 @@
+:root{
+  /* Theme colors */
+  --bg:#0c1212;--card:#0f1818;--card-2:#0b1413;--ink:#eaf6f5;--muted:#9ed2cf;--accent:#0aa8a0;--accent-2:#026c68;--hi:#d6ff2e;--border:#174443;--stroke:#2b4e4c;
+  /* Danger palette */
+  --danger:#ff4d57;--danger-2:#d93a42;--danger-hi:rgba(255,77,87,.25);
+  /* Layout + components */
+  --edit-header-h:56px; --logo-preview-size:140px; --panel-pad-x:16px;
+  /* Field system */
+  --field-h:34px;--field-pad-x:12px;--field-pad-y:8px;--field-radius:10px;--field-font-size:14px;--field-gap:10px;--label-color:var(--muted);--label-weight:600;
+}
+*{box-sizing:border-box} html,body{height:100%} body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+.topbar{display:flex;align-items:center;height:52px;padding:0 12px;background:linear-gradient(180deg,#0d1616,#0a1212);border-bottom:1px solid var(--border)}
+.brand{font-weight:700;color:var(--muted)} .spacer{flex:1} .role{margin-right:8px}
+#roleBadge{background:rgba(2,108,104,.2);border:1px solid var(--accent-2);padding:4px 8px;border-radius:999px;color:var(--muted)}
+.profile{position:relative}
+.menu{position:absolute;right:0;top:32px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;flex-direction:column;min-width:160px}
+.menu.hidden{display:none}
+.menu button{padding:10px 12px;background:transparent;color:var(--ink);border:none;text-align:left}
+.menu button:hover{background:rgba(214,255,46,.08)}
+
+.wrap{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 52px)}
+.drawer{border-right:1px solid var(--border);background:linear-gradient(180deg,var(--card),var(--card-2));overflow:hidden}
+.panels{height:100%;position:relative}
+.panel{position:absolute;inset:0;padding:12px 12px 16px;overflow:auto}
+.panels.mode-list #listPanel{display:block}
+.panels.mode-list #editPanel{display:none}
+.panels.mode-edit #listPanel{display:none}
+.panels.mode-edit #editPanel{display:block}
+
+.panel-head{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.panel-head .title{font-weight:700}
+.list{display:flex;flex-direction:column;gap:6px}
+
+.list-item{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--border);background:rgba(2,108,104,.06);border-radius:10px;cursor:pointer}
+.list-item:hover{border-color:var(--accent)}
+.legend-swatch{width:14px;height:14px;border-radius:4px;border:2px solid var(--stroke)}
+.badge-thumb{
+  width:28px;
+  height:28px;
+  border-radius:6px;
+  overflow:hidden;
+  border:1px solid rgba(234,246,245,.25);
+  background:rgba(0,0,0,.28);
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.badge-thumb img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  pointer-events:none;
+}
+
+.list-category{
+  position:relative;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(2,108,104,.05);
+  overflow:hidden;
+  padding:2px; /* inner buffer so header/body align */
+}
+.category-header{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:10px 14px;
+  background:transparent;
+  border:none;
+  color:var(--ink);
+  font-weight:600;
+  cursor:pointer;
+  transition:background .2s ease;
+}
+.category-header:hover{filter:brightness(1.08);}
+.category-header .label{display:flex;align-items:center;gap:8px;font-weight:600}
+.category-header .caret{transition:transform .2s ease;}
+.category-header[aria-expanded="false"] .caret{transform:rotate(-90deg);}
+.category-body{display:block;padding:8px 10px 10px;display:flex;flex-direction:column;gap:10px}
+.category-body:empty{display:none}
+.category-body .list-item{margin-bottom:8px}
+.category-body .list-item:last-child{margin-bottom:0}
+.list-empty{padding:16px;text-align:center;color:var(--muted);font-style:italic;border:1px dashed var(--border);border-radius:10px;background:rgba(2,108,104,.05)}
+
+/* Unified field system for all future inputs */
+.panel-content label:not(.tiny){
+  display:flex;flex-direction:column;gap:2px;margin-bottom:var(--field-gap);
+  color:var(--label-color);font-weight:var(--label-weight);
+}
+.panel-content input,
+.panel-content select,
+.panel-content textarea {
+  height: var(--field-h);
+  padding: var(--field-pad-y) var(--field-pad-x);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: var(--field-font-size);
+  line-height: 1.4;
+}
+/* Textareas grow but keep the same visual language */
+.panel-content textarea{ min-height: calc(var(--field-h) * 2.4); resize: vertical; }
+/* Focus state for all fields */
+.panel-content input:focus,
+.panel-content select:focus,
+.panel-content textarea:focus{
+  outline:2px solid var(--hi);box-shadow:0 0 0 2px rgba(214,255,46,.2) inset
+}
+/* Two-up field grid for compact side drawer */
+.panel-content .two{
+  display:grid;
+  grid-template-columns:1fr 1fr; /* Width + Length */
+  gap: var(--field-gap);
+}
+/* Prevent intrinsic min-content overflow on labels/inputs */
+.panel-content .two > label{ min-width:0; }
+.panel-content .two input{
+  width:100%;
+  box-sizing:border-box;
+  max-width:100%;
+}
+/* Collapse to one column on very narrow screens */
+@media (max-width: 520px){
+  .panel-content .two{ grid-template-columns:1fr; }
+}
+
+.inline{display:flex;gap:8px;align-items:flex-end}
+.inline label.grow{flex:1 1 auto}
+label.nowrap{white-space:nowrap}
+label.tiny {
+  display: flex;
+  flex-direction: column;  /* stack vertically */
+  align-items: center; /* left-align */
+  gap: 1px;                /* smaller vertical spacing */
+  font-size: 12px;
+  opacity: .9;
+  line-height: 0.6;         /* reduce extra line height space */
+}
+label.tiny input[type="checkbox"]{
+  margin: 0;                /* override UA margins that add extra space */
+  transform: translateY(0); /* neutral; keeps centering consistent */
+}
+
+/* Remove duplicate logo-preview-size variable block */
+#logoPreview{width:var(--logo-preview-size);height:var(--logo-preview-size);max-width:var(--logo-preview-size);max-height:var(--logo-preview-size);object-fit:contain;background:var(--card-2);border:1px dashed var(--border);border-radius:10px;display:none;-webkit-user-drag:none;user-select:none;pointer-events:none}
+
+.logo-preview-wrap{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 0;
+  overflow:hidden;
+  position:relative; /* allow inline badge to position over the preview */
+}
+
+/* panel inline returning badge (small) */
+.panel-badges{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:44px;
+  height:92px; /* reserve vertical space for stacked badges */
+  pointer-events:none; /* container itself shouldn't capture events */
+}
+
+.panel-return-badge{
+  position:absolute;
+  top:0px;
+  left:0px;
+  width:44px; /* increased size for panel */
+  height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:8px;
+  background:transparent; /* artwork provides the color */
+  pointer-events:auto;
+  z-index:30;
+}
+/* match the map badge color for the inline panel badge */
+.panel-return-badge{ color: var(--hi); }
+
+/* panel staff badge styling */
+.panel-staff-badge{
+  position:absolute;
+  top:0px;
+  left:0px;
+  width:44px;
+  height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:8px;
+  background:transparent;
+  pointer-events:auto;
+  z-index:30;
+  color: var(--danger);
+}
+.panel-staff-badge svg{width:100%;height:100%;display:block}
+
+/* small safety: ensure the SVG inside scales nicely */
+.panel-return-badge svg{width:100%;height:100%;display:block}
+
+/* When a staff badge is present, push the return badge down to create a stacked column */
+.panel-badges.has-staff .panel-return-badge{ top:48px; }
+
+.map-wrap{position:relative}
+#map{position:absolute;inset:42px 0 0 0}
+.mapbar{position:absolute;left:0;right:0;top:0;height:42px;display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0d1616,#0a1212)}
+.mapbar input, .mapbar select{height:30px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:var(--ink);min-width:0}
+.mapbar .tiny{font-size:12px;color:var(--muted)}
+.mapbar button{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--border);background:rgba(2,108,104,.18);color:var(--ink)}
+.mapbar button.prim{background:linear-gradient(180deg,#0aa8a0,#026c68);border-color:#026c68;color:#fff}
+.mapbar button:hover{filter:brightness(1.06)}
+
+button.ghost{border:1px solid var(--border);background:transparent;color:var(--ink);border-radius:10px;padding:4px 8px}
+button.warn{background:rgba(214,255,46,.12);border:1px solid var(--hi);color:#eaf6f5}
+button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffdede}
+
+.actions-bottom{display:grid;gap:8px;margin-top:12px}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns: min(92vw,380px) 1fr}
+}
+
+/* NEW: generic hide helper */
+.hidden { display: none !important; }
+
+/* Make top bar and profile menu float above map/admin controls */
+.topbar { position: relative; z-index: 20; }        /* was no z-index */
+.menu   { z-index: 1000; }                          /* ensure dropdown is on top */
+
+/* Keep admin mapbar below topbar, above the map canvas */
+.mapbar { z-index: 5; }                             /* was missing */
+#map    { z-index: 1; }                             /* optional but clarifying */
+
+
+.mcpp-label-center {
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+
+.category-wrap {
+  margin-top: var(--field-gap);  /* space above Category label/pill */
+  margin-bottom: var(--field-gap); /* space below pill before next label */
+}
+
+.panel-content label.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap);
+  margin-bottom: var(--field-gap);
+  color: var(--label-color);
+  font-weight: var(--label-weight);
+  font-size: var(--field-font-size);
+}
+
+#editPanel .category-wrap .pill{
+  display:block;width:100%;
+  height: var(--field-h);
+  padding: var(--field-pad-y) var(--field-pad-x);
+  border-radius: var(--field-radius);
+  border:1px solid var(--border);
+  background:var(--card-2);color:var(--ink);
+  font-size:var(--field-font-size);line-height:1.4;font-weight:400;text-align:left;
+  display:flex;align-items:center;
+}
+
+/* optional belt-and-suspenders */
+.gm-style .mcpp-rot-knob { display:none; }
+
+/* Booth # row — align label and input on the same baseline */
+.booth-id-row{
+  display:flex;
+  align-items: baseline; /* keeps text baselines aligned */
+  gap: 8px;
+}
+
+/* Override the global .panel-content label column rules for this one row */
+.booth-id-row label{
+  display: inline-block;
+  margin: 0;             /* no extra bottom margin */
+  gap: 0;                /* kill any inherited gap */
+  font-size: var(--field-font-size);
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+/* Make the input visually match the label’s text height/baseline */
+.booth-id-row input{
+  font-size: var(--field-font-size);
+  line-height: 1.2;                  /* match label’s line-height */
+  height: calc(1.2em + 6px);         /* padding + border baked in */
+  padding: 2px 8px;                  /* compact, keeps baseline feel */
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  width: auto;                        /* don’t stretch full width */
+  box-sizing: border-box;
+  vertical-align: baseline;
+}
+
+/* If your global label style adds bottom margin, neutralize it here */
+#editPanel .booth-id-row label.field-label,
+#editPanel .booth-id-row label{
+  margin-bottom: 0 !important;
+}
+
+/* Booth search box styling — matches form field aesthetic */
+#listSearch {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: var(--field-font-size);
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+/* Focus state for consistent highlight effect */
+#listSearch:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Placeholder color to match your muted text palette */
+#listSearch::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+/* Optional – tighten layout inside panel header */
+.panel-head input#listSearch {
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+.panel-search { margin-top: 2px; margin-bottom: 10px; }
+
+.schedule-wrap {
+  margin: var(--field-gap) 0;
+}
+
+.schedule-label {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+
+#scheduledDaysDisplay {
+  padding: 6px 10px;
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: var(--field-font-size);
+  margin-bottom: var(--field-gap);
+}
+
+#scheduledDaysFieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+  padding: var(--field-pad-y) var(--field-pad-x);
+  background: var(--card-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+#scheduledDaysFieldset legend {
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0 4px;
+}
+
+.scheduled-days-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+}
+
+.scheduled-day-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.scheduled-day-option input[type="checkbox"] {
+  transform: scale(1.05);
+}
+
+.schedule-wrap .hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.return-vendor-wrap {
+  margin: var(--field-gap) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+#returnVendorDisplay {
+  padding: 6px 10px;
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: var(--field-font-size);
+}
+
+.return-vendor-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.return-vendor-option input[type="checkbox"] {
+  transform: scale(1.1);
+}
+
+
+/* Make the address search field wider in the map bar */
+#adminBar #addr {
+  flex: 1.6;                 /* grows more than other elements */
+  min-width: 200px;          /* ensures comfortable width */
+  max-width: 350px;          /* avoids breaking layout on large screens */
+  padding: 6px 10px;
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: var(--field-font-size);
+  box-sizing: border-box;
+}
+
+/* Maintain layout consistency for the other mapbar elements */
+#adminBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Vendor/Booth list actions row */
+.panel-actions { display:flex; gap:8px; margin: 6px 0 10px; }
+.panel-actions > button { flex: 0 0 auto; }
+
+/* ===============================
+   Button system — panel buttons
+   =============================== */
+/* Base style for buttons inside drawer panels */
+.drawer .panel button {
+  height: var(--field-h);
+  padding: var(--field-pad-y) var(--field-pad-x);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: var(--field-font-size);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: .2px;
+  box-sizing: border-box;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, filter .18s ease;
+  cursor: pointer;
+}
+
+/* Primary action */
+.drawer .panel button.prim {
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  border-color: var(--accent-2);
+  color: #fff;
+}
+
+/* Hover/focus/active feedback */
+.drawer .panel button:hover { filter: brightness(1.06); }
+.drawer .panel button:focus-visible {
+  outline: 2px solid var(--hi);
+  outline-offset: 2px;
+}
+.drawer .panel button:active { filter: brightness(0.98); }
+
+/* Disabled state */
+.drawer .panel button[disabled],
+.drawer .panel button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/*  (Already kept above, so removed here) */
+
+/* ==============================
+   Sticky Booth Actions + Danger Button
+   ============================== */
+
+/* Remove duplicate danger/edit-header-h variable block */
+
+/* --- Delete Booth button styling --- */
+button.danger {
+  background: linear-gradient(180deg, var(--danger), var(--danger-2));
+  border: 1px solid var(--danger-2);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--field-radius);
+  transition: background 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+}
+button.danger:hover {
+  filter: brightness(1.08);
+}
+button.danger:active {
+  filter: brightness(0.95);
+}
+button.danger:focus-visible {
+  outline: 2px solid var(--danger-hi);
+  outline-offset: 2px;
+}
+
+/* --- Sticky footer for the Selected Booth panel --- */
+#editPanel .actions-bottom {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: grid;
+  grid-auto-flow: row;
+  gap: 8px;
+  padding: 10px 0 8px;
+  background: var(--card);
+  border-top: 1px solid var(--hi);
+  backdrop-filter: none;
+  backdrop-filter: saturate(110%) blur(2px);
+  margin-bottom: 0;
+}
+
+/* Buttons fill full width in narrow layout */
+#editPanel .actions-bottom button {
+  width: 100%;
+}
+
+/* Add extra bottom padding so form content doesn’t hide behind sticky bar */
+#editPanel .panel-content {
+  padding-bottom: calc(var(--field-gap));
+}
+
+/* On wider screens, show buttons in two columns */
+@media (min-width: 1100px) {
+  #editPanel .actions-bottom {
+    grid-template-columns: 1fr 1fr;
+  }
+  #editPanel .actions-bottom button:nth-child(3) {
+    grid-column: 1 / -1; /* Delete Booth spans full width */
+  }
+}
+
+/* Ensure Delete Booth uses danger theme (wins against generic button styles) */
+.drawer .panel .actions-bottom button#deleteBooth.danger{
+  background: linear-gradient(180deg, var(--danger), var(--danger-2)) !important;
+  border: 1px solid var(--danger-2) !important;
+  color: #fff !important;
+}
+
+#editPanel.panel{
+  padding-bottom: 0 !important;   /* remove panel's bottom padding so sticky sits flush */
+}
+
+/* Extra safety: mask any remaining bleed with a bottom pad overlay */
+#editPanel.panel::after{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 1px;                     /* tiny shim to ensure no subpixel bleed */
+  background: var(--card);
+  pointer-events: none;
+}
+
+/* === Sticky header for Selected Booth panel (matches footer style) === */
+#editPanel .actions-top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: var(--edit-header-h);
+  background: var(--card);
+  border-bottom: 1px solid var(--hi);
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+
+/* Style the booth number label */
+#editPanel .actions-top .booth-id-display {
+  font-weight: 600;
+  color: var(--hi);
+  letter-spacing: 0.5px;
+}
+
+/* Back button consistency */
+#editPanel .actions-top button.ghost {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 4px 8px;
+  font-weight: 600;
+  transition: filter 0.2s ease;
+}
+
+#editPanel .actions-top button.ghost:hover {
+  filter: brightness(1.2);
+}
+
+/* Remove duplicate .actions-top and header padding shims */
+ 
+/* === FINAL OVERRIDES: Selected Booth layout & scrolling ==================== */
+/* Goal: sticky header/footer stay pinned; only the fields area scrolls. */
+
+/* Force #editPanel to be a flex column container, not absolutely positioned */
+.panels.mode-edit #editPanel.panel {
+  position: relative !important;   /* cancels .panel{position:absolute} */
+  inset: auto !important;          /* cancels .panel{inset:0} */
+  height: 100% !important;         /* ensure full column height */
+  display: flex !important;        /* flex column layout for header/content/footer */
+  flex-direction: column !important;
+  overflow: hidden !important;     /* stop whole panel from scrolling */
+  padding: 0 !important;           /* header/footer sit flush */
+}
+
+/* Make only the content area scrollable within the flex column */
+.panels.mode-edit #editPanel .panel-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;        /* CRITICAL: allow overflow to scroll in flex */
+  overflow-y: auto !important;     /* this is the only scroller */
+  -webkit-overflow-scrolling: touch; /* smooth mobile scroll */
+  padding-top: calc(var(--edit-header-h, 56px) + 6px) !important; /* keep below header */
+  padding-bottom: var(--field-gap) !important;                    /* above footer */
+}
+
+/* Keep sticky bars above scroller content and fully opaque */
+.panels.mode-edit #editPanel .actions-top,
+.panels.mode-edit #editPanel .actions-bottom {
+  z-index: 15 !important;
+  background: var(--card) !important;
+}
+
+/* Top shim and bottom shim to mask sub-pixel bleed on some GPUs */
+.panels.mode-edit #editPanel.panel::before,
+.panels.mode-edit #editPanel.panel::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: var(--card);
+  pointer-events: none;
+}
+.panels.mode-edit #editPanel.panel::before { top: 0; }
+.panels.mode-edit #editPanel.panel::after  { bottom: 0; }
+/* === Panel side padding applied to both Edit and Viewer panels === */
+#editPanel .actions-top,
+#editPanel .panel-content,
+#editPanel .actions-bottom{
+  padding-left: var(--panel-pad-x) !important;
+  padding-right: var(--panel-pad-x) !important;
+}
+
+#listPanel .panel-head,
+#listPanel .panel-content{
+  padding-left: var(--panel-pad-x) !important;
+  padding-right: var(--panel-pad-x) !important;
+}
+/* === Tighten gap beneath sticky header in Selected Booth panel === */
+#editPanel .actions-top{ margin-bottom: 0 !important; padding-bottom: 4px; }
+#editPanel .panel-content{ padding-top: var(--field-gap) !important; }
+#editPanel .category-wrap{ margin-top: calc(var(--field-gap) * 0.5) !important; }
+
+/* === Tighten gap beneath header (beat .panels.mode-edit rule) === */
+.panels.mode-edit #editPanel .panel-content{
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  padding-top: var(--field-gap) !important;
+  padding-bottom: var(--field-gap) !important;
+  padding-left: var(--panel-pad-x) !important;
+  padding-right: var(--panel-pad-x) !important;
+}
+#editPanel .panel-content > :first-child{
+  margin-top: 0 !important;
+}
+
+/* Booth return badge (bookmark/ribbon overlay) */
+.booth-logo-badge{
+  display: block;
+  border-radius: 10px;
+  background: rgba(6, 12, 12, 0.75);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 16px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.2) inset;
+  backdrop-filter: saturate(110%) blur(1px);
+  overflow: hidden;
+}
+.booth-logo-badge img{
+  display:block;
+  width:100%; height:100%;
+  object-fit: contain;
+}
+.booth-return-badge{
+  position:absolute;
+  left:0;
+  top:0;
+  transform:translate(calc(-100% - 1px), 2px);
+  transform-origin:100% 0%;
+  width:22px;
+  height:22px;
+  display:block;
+  pointer-events:auto;
+  color:var(--hi); /* icon color */
+  background:transparent; /* SVG ribbon draws background */
+  border:none; /* no outer border so ribbon shows clearly */
+  border-radius:4px;
+  box-shadow:none;
+  overflow:visible;
+}
+.booth-return-badge svg{ display:block; width:100%; height:100%; }
+
+.booth-return-badge:hover{ transform:translate(calc(-100% - 1px), 2px) scale(1.08); }
+
+/* booth staff badge: same layout as return badge but different color */
+.booth-staff-badge{
+  position:absolute;
+  left:0;
+  top:0;
+  transform:translate(calc(-200% - 6px), 2px);
+  transform-origin:100% 0%;
+  width:22px;
+  height:22px;
+  display:block;
+  pointer-events:auto;
+  color:var(--danger);
+  background:transparent;
+  border:none;
+  border-radius:4px;
+  box-shadow:none;
+  overflow:visible;
+}
+.booth-staff-badge svg{ display:block; width:100%; height:100%; }
+.booth-staff-badge:hover{ transform:translate(calc(-200% - 6px), 2px) scale(1.08); }
+

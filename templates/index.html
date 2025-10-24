@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Magic City Plant‑A‑Palooza — Vendor Map</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ cachebuster }}">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🌱 Magic City Plant‑A‑Palooza</div>
+    <div class="spacer"></div>
+    <div class="role"><span id="roleBadge">Viewer</span></div>
+    <div class="profile">
+      <button id="profileBtn" class="ghost">⋯</button>
+      <div id="profileMenu" class="menu hidden">
+        <button id="loginBtn">Login (PIN)</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <aside class="drawer open" id="drawer">
+      <div id="panels" class="panels mode-list">
+        <section id="listPanel" class="panel">
+          <div class="panel-head" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="title" style="font-size: 1.2em;">Vendors / Booths</div>
+            <button id="addBooth" class="prim admin-only">Add Booth</button>
+          </div>
+          <div class="panel-search">
+            <input id="listSearch" placeholder="Search by #, business, vendor…" />
+          </div>
+          <div id="boothList" class="list"></div>
+        </section>
+
+        <section id="editPanel" class="panel hidden">
+          <div class="actions-top">
+            <button id="backToList" class="ghost">← Back</button>
+            <div class="booth-id-display">
+              Booth # <span id="boothId">—</span>
+            </div>
+          </div>
+          <div class="panel-content">
+
+            <div class="category-wrap">
+              <label class="viewer-only grow">Category
+                <span id="categoryText" class="pill"></span>
+              </label>
+
+              <label class="admin-only grow" for="category">Category
+                <select id="category">
+                  <option value="standard">Plant Vendor 🌿</option>
+                  <option value="collaborator">Craft Vendor 🎨</option>
+                  <option value="foodbeverage">Food/Beverage Vendor 🍽️</option>
+                  <option value="activity">Activity/Entertainment 🎪</option>
+                  <option value="misc">Miscellaneous 🧭</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="logo-preview-wrap">
+              <img id="logoPreview" alt="Logo preview">
+              <div id="panelBadges" class="panel-badges">
+                <div id="panelReturnBadge" class="viewer-only panel-return-badge hidden" title="Returning vendor" aria-hidden="true">
+                <!-- reuse the on-map ribbon + circular-arrow artwork, slightly larger for panel use -->
+                <svg width="44" height="44" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Returning vendor">
+                  <title>Returning vendor</title>
+                  <g fill="none" fill-rule="evenodd">
+                    <path d="M28 0H6C4.9 0 4 .9 4 2v20c0 .9.6 1.7 1.5 1.9L16 27l10.5-3.1c.9-.2 1.5-1 1.5-1.9V2c0-1.1-.9-2-2-2z" style="fill:var(--accent);opacity:0.28" transform="translate(0 -1)" />
+                    <path d="M6 0v22l10-3 10 3V0H6z" style="fill:rgba(0,0,0,0.06)" transform="translate(0 -1)" />
+                    <g transform="translate(0,0)">
+                      <g transform="translate(6 4) scale(0.6)">
+                        <!-- filled head drawn first so the stroked path overlays and preserves the arrow shape -->
+                        <!-- triangular head for a crisper arrow silhouette -->
+                        <path d="M16 3 L20 7 L12 7 Z" fill="currentColor" />
+                        <path d="M16 6v-3l-4 4 4 4v-5c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9H6c0 5.52 4.48 10 10 10s10-4.48 10-10S21.52 6 16 6z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                      </g>
+                    </g>
+                  </g>
+                </svg>
+                </div>
+                <div id="panelStaffBadge" class="viewer-only panel-staff-badge hidden" title="Event staff" aria-hidden="true">
+                <!-- staff ribbon + person icon, slightly larger for panel use -->
+                <svg width="44" height="44" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Event staff">
+                  <title>Event staff</title>
+                  <g fill="none" fill-rule="evenodd">
+                    <path d="M28 0H6C4.9 0 4 .9 4 2v20c0 .9.6 1.7 1.5 1.9L16 27l10.5-3.1c.9-.2 1.5-1 1.5-1.9V2c0-1.1-.9-2-2-2z" style="fill:var(--danger);opacity:0.28" transform="translate(0 -1)" />
+                    <path d="M6 0v22l10-3 10 3V0H6z" style="fill:rgba(0,0,0,0.06)" transform="translate(0 -1)" />
+                    <g transform="translate(5 5) scale(0.95)">
+                      <!-- nudge up and right for proper visual centering on the panel badge -->
+                      <circle cx="11" cy="5" r="2.8" fill="currentColor" />
+                      <!-- shift body slightly right so it centers under the head in the panel badge -->
+                      <path d="M7 12c0-3 8-3 8 0v2H7v-2z" fill="currentColor" />
+                    </g>
+                  </g>
+                </svg>
+                </div>
+              </div>
+            </div>
+            <label>Logo / Picture URL (optional)
+              <input id="logoUrl" type="url" placeholder="https://...">
+            </label>
+
+            <label class="grow">Business/Booth Name
+              <input id="biz" type="text" placeholder="Ex: Pixel Plant Co./Potting Station">
+            </label>
+            
+            <label class="grow">Vendor Name
+              <input id="vendorName" type="text" placeholder="First and Last Name">
+            </label>
+
+            <div class="inline contact-row" id="phoneRow">
+              <label class="grow">Phone
+                <input id="phone" type="tel" placeholder="(555) 123‑4567">
+              </label>
+              <label class="tiny nowrap">Hidden
+                <input id="phonePublic" type="checkbox">
+              </label>
+            </div>
+
+            <div class="inline contact-row" id="emailRow">
+              <label class="grow">Email
+                <input id="email" type="email" placeholder="name@example.com">
+              </label>
+              <label class="tiny nowrap">Hidden
+                <input id="emailPublic" type="checkbox">
+              </label>
+            </div>
+
+            <label class="grow">Website
+              <input id="website" type="url" placeholder="https://example.com">
+            </label>
+
+            <div class="schedule-wrap">
+              <div class="viewer-only schedule-label">Scheduled Days</div>
+              <div class="viewer-only" id="scheduledDaysDisplay">Not scheduled</div>
+
+              <fieldset class="admin-only" id="scheduledDaysFieldset">
+                <legend>Scheduled Days</legend>
+                <div class="scheduled-days-grid" id="scheduledDaysOptions"></div>
+                <small class="hint">Select the weekend days this booth will be operating.</small>
+              </fieldset>
+            </div>
+
+            <div class="return-vendor-wrap">
+              <!-- viewer-only inline badges (rendered near the logo preview). Admin inputs below. -->
+              <label class="admin-only return-vendor-option">
+                <input id="returnVendor" type="checkbox">
+                Returning Vendor
+              </label>
+              <label class="admin-only return-vendor-option">
+                <input id="eventStaff" type="checkbox">
+                Event Staff
+              </label>
+            </div>
+
+            <label class="grow">Notes
+              <textarea id="notes" rows="5" placeholder="Products, power, special needs…"></textarea>
+            </label>
+
+            <div class="two admin-only">
+              <label class="grow">Width (ft)
+                <input id="widthFeet" type="number" min="5" step="5">
+              </label>
+              <label class="grow">Length (ft)
+                <input id="lengthFeet" type="number" min="5" step="5">
+              </label>
+            </div>
+            <label class="admin-only">Rotation (deg)<input id="rotationDeg" type="number" step="10"></label>
+          </div>
+          <div class="actions-bottom">
+            <button id="assign" class="prim">Assign / Save</button>
+            <button id="unassign" class="warn">Clear Details</button>
+            <button id="deleteBooth" class="danger">Delete Booth</button>
+          </div>
+        </section>
+
+        <section id="legendPanel" class="panel hidden"></section>
+      </div>
+    </aside>
+
+    <section class="map-wrap">
+      <div class="mapbar" id="adminBar">
+        <input id="addr" placeholder="Search address… (ex: 111 Moore Lane, Billings, MT)"/>
+        <button id="locate">Locate</button>
+        <button id="fit">Re-Center</button>
+        <button id="toggleType">Map Labels</button>
+      </div>
+      <div id="map"></div>
+    </section>
+  </main>
+
+  <script id="bootstrap" type="application/json">
+  {{ {'DEFAULTS': defaults, 'MAP_ID': map_id}|tojson }}
+  </script>
+  <script>
+    (function(){
+      try {
+        const boot = JSON.parse(document.getElementById('bootstrap').textContent || '{}');
+        window.__DEFAULTS__ = boot.DEFAULTS || {};
+        window.__MAP_ID__ = boot.MAP_ID || '';
+      } catch(e) {
+        window.__DEFAULTS__ = {};
+        window.__MAP_ID__ = '';
+      }
+    })();
+  </script>
+  <!-- Global Constants (loaded first)-->
+  <script src="{{ url_for('static', filename='mcpp-config.js') }}"></script>
+
+  <!-- Google Maps API -->
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMCPPMap&loading=async&v=quarterly&libraries=marker"></script>
+  
+  <!-- JS Modules -->
+  <script src="{{ url_for('static', filename='js/core-state.js') }}?v={{ cachebuster }}"></script>
+  <script src="{{ url_for('static', filename='js/utils-geo.js') }}?v={{ cachebuster }}"></script>
+  <script src="{{ url_for('static', filename='js/booth-centers.js') }}?v={{ cachebuster }}"></script>
+  <script src="{{ url_for('static', filename='js/ui-list.js') }}?v={{ cachebuster }}"></script>
+  <script src="{{ url_for('static', filename='js/draw-overlays.js') }}?v={{ cachebuster }}"></script>
+  <script src="{{ url_for('static', filename='js/controls.js') }}?v={{ cachebuster }}"></script>
+  <script src="{{ url_for('static', filename='js/map-init.js') }}?v={{ cachebuster }}"></script>
+  <script src="{{ url_for('static', filename='js/badges.js') }}?v={{ cachebuster }}"></script>
+</body>
+</html>
