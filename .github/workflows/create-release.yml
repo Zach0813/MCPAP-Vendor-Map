@@ -1,0 +1,40 @@
+name: Create Release from RELEASE_NOTES
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ['v*']
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Create release from RELEASE_NOTES file
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'RELEASE_NOTES/v0.1.1.md';
+            let body = '';
+            try {
+              body = fs.readFileSync(path, 'utf8');
+            } catch (e) {
+              // fallback: try to find any RELEASE_NOTES file
+              const files = fs.readdirSync('RELEASE_NOTES').filter(f=>f.endsWith('.md'));
+              if (files.length) body = fs.readFileSync(`RELEASE_NOTES/${files[0]}`, 'utf8');
+            }
+            const tag = (context.payload.ref && context.payload.ref.replace('refs/tags/','')) || github.context.ref.replace('refs/tags/','') || 'v0.1.1';
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: tag,
+              body: body || 'Release notes not found.',
+              draft: false,
+              prerelease: false
+            });
