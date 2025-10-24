@@ -68,6 +68,14 @@
     }
   }
 
+  // Helper to ensure website has a scheme
+  function normalizeWebsite(url) {
+    if (!url) return '';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return 'https://' + trimmed;
+  }
+
   function listRow(id, booth) {
     const name = (booth.biz && booth.biz.trim()) || (booth.vendor_name || '');
     const displayId = (MCPP.formatBoothId ? MCPP.formatBoothId(id) : id);
@@ -94,6 +102,22 @@
     }
 
     el.appendChild(tx);
+    // small website link in the list row (opens in new tab)
+    try {
+      if (booth.website && booth.website.trim()) {
+        const linkWrap = document.createElement('div');
+        linkWrap.className = 'list-site-wrap';
+        const a = document.createElement('a');
+        a.className = 'list-site-link';
+        a.href = normalizeWebsite(booth.website);
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.title = 'Open vendor website in a new tab';
+        a.textContent = '🔗';
+        linkWrap.appendChild(a);
+        el.appendChild(linkWrap);
+      }
+    } catch (_) {}
     el.addEventListener('click', () => {
       select(id);
       if (S.booths[id] && S.map) S.map.panTo(S.booths[id].center);
@@ -299,6 +323,41 @@
         if (phoneRowSel) phoneRowSel.style.display = '';
         if (emailRowSel) emailRowSel.style.display = '';
       }
+
+      // Update viewer-only clickable links for email and website
+      try {
+        const emailViewer = document.getElementById('emailViewer');
+        const emailLink = document.getElementById('emailLink');
+        if (emailViewer && emailLink) {
+          if (booth.email && (S.isAdmin || booth.email_public)) {
+            emailLink.href = 'mailto:' + (booth.email || '');
+            emailLink.textContent = booth.email;
+            emailViewer.classList.remove('hidden');
+            emailViewer.setAttribute('aria-hidden', 'false');
+          } else {
+            emailLink.href = '#'; emailLink.textContent = '';
+            emailViewer.classList.add('hidden');
+            emailViewer.setAttribute('aria-hidden', 'true');
+          }
+        }
+      } catch (_) {}
+      try {
+        const websiteViewer = document.getElementById('websiteViewer');
+        const websiteLink = document.getElementById('websiteLink');
+        if (websiteViewer && websiteLink) {
+          if (booth.website) {
+            const href = normalizeWebsite(booth.website);
+            websiteLink.href = href;
+            websiteLink.textContent = booth.website.replace(/^https?:\/\//i, '');
+            websiteViewer.classList.remove('hidden');
+            websiteViewer.setAttribute('aria-hidden', 'false');
+          } else {
+            websiteLink.href = '#'; websiteLink.textContent = '';
+            websiteViewer.classList.add('hidden');
+            websiteViewer.setAttribute('aria-hidden', 'true');
+          }
+        }
+      } catch (_) {}
 
       const styleFn = MCPP.style || (() => ({ stroke: '#3f7f7f' }));
       const getCenter = MCPP.getVisualCenterAdjusted || ((b) => b.center);

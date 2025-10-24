@@ -111,26 +111,34 @@
             </label>
 
             <div class="inline contact-row" id="phoneRow">
-              <label class="grow">Phone
-                <input id="phone" type="tel" placeholder="(555) 123‑4567">
-              </label>
-              <label class="tiny nowrap">Hidden
-                <input id="phonePublic" type="checkbox">
-              </label>
-            </div>
+                    <label class="grow">Phone
+                      <input id="phone" type="tel" placeholder="(555) 123‑4567">
+                    </label>
+                    <label class="tiny nowrap">Hidden
+                      <input id="phonePublic" type="checkbox">
+                    </label>
+                  </div>
+            
+                  <div class="inline contact-row" id="emailRow">
+                    <label class="grow">Email
+                      <input id="email" type="email" placeholder="name@example.com">
+                      <!-- viewer-only clickable email link -->
+                      <div id="emailViewer" class="viewer-only" style="margin-top:6px;">
+                        <a id="emailLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+                      </div>
+                    </label>
+                    <label class="tiny nowrap">Hidden
+                      <input id="emailPublic" type="checkbox">
+                    </label>
+                  </div>
 
-            <div class="inline contact-row" id="emailRow">
-              <label class="grow">Email
-                <input id="email" type="email" placeholder="name@example.com">
-              </label>
-              <label class="tiny nowrap">Hidden
-                <input id="emailPublic" type="checkbox">
-              </label>
-            </div>
-
-            <label class="grow">Website
-              <input id="website" type="url" placeholder="https://example.com">
-            </label>
+                  <label class="grow">Website
+                    <input id="website" type="url" placeholder="https://example.com">
+                    <!-- viewer-only clickable website link -->
+                    <div id="websiteViewer" class="viewer-only" style="margin-top:6px;">
+                      <a id="websiteLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+                    </div>
+                  </label>
 
             <div class="schedule-wrap">
               <div class="viewer-only schedule-label">Scheduled Days</div>
