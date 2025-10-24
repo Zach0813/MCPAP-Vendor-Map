@@ -23,6 +23,75 @@
   const panelStaffBadgeEl = els.panelStaffBadge || (typeof document !== 'undefined' ? document.getElementById('panelStaffBadge') : null);
   const panelBadgesContainer = (typeof document !== 'undefined' ? document.getElementById('panelBadges') : null);
 
+  // Small accessible toast helper. Usage: showToast('Message', ms = 2000, anchorEl = null)
+  // If anchorEl is provided, the toast will appear just above that element.
+  function showToast(msg, ms = 2000, anchorEl = null) {
+    try {
+      let el = document.getElementById('mcppToast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'mcppToast';
+        el.className = 'mcpp-toast';
+        el.setAttribute('aria-live', 'polite');
+        el.setAttribute('aria-atomic', 'true');
+        document.body.appendChild(el);
+      }
+      el.textContent = msg || '';
+      // Reset inline styles to default bottom-centered position
+      el.style.left = '50%';
+      el.style.bottom = '24px';
+      el.style.top = 'auto';
+      el.style.transform = 'translateX(-50%) translateY(10px)';
+
+      if (anchorEl && typeof anchorEl.getBoundingClientRect === 'function') {
+        try {
+          const r = anchorEl.getBoundingClientRect();
+          const x = r.left + (r.width / 2) + window.scrollX;
+          const y = r.top + window.scrollY;
+          // place the toast centered horizontally over the anchor
+          el.style.left = `${x}px`;
+          el.style.bottom = 'auto';
+          // measure the toast height so we can place it above the anchor reliably
+          // ensure it's rendered (it may be hidden), so force reflow
+          el.style.visibility = 'hidden';
+          el.classList.add('show');
+          void el.offsetHeight;
+          const toastH = el.offsetHeight || 28;
+          el.classList.remove('show');
+          el.style.visibility = '';
+          // position the toast above the anchor using the toast's height + gap
+          const gap = 20; // larger gap in px to avoid overlap
+          const top = Math.max(8, Math.round(y - toastH - gap));
+          el.style.top = `${top}px`;
+          // start slightly below the final position so the transition moves it up
+          el.style.transform = 'translateX(-50%) translateY(6px)';
+        } catch (_) {
+          /* ignore and use default */
+        }
+      }
+
+      // reset show class to trigger transition
+      el.classList.remove('show');
+      // force reflow
+      void el.offsetWidth;
+      el.classList.add('show');
+
+      if (showToast._t) clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => {
+        try { el.classList.remove('show'); } catch (_) {}
+        // after transition, reset inline positioning back to default so next use uses bottom placement
+        setTimeout(() => {
+          try {
+            el.style.left = '50%';
+            el.style.bottom = '24px';
+            el.style.top = 'auto';
+            el.style.transform = 'translateX(-50%) translateY(10px)';
+          } catch (_) {}
+        }, 220);
+      }, ms);
+    } catch (_) {}
+  }
+
   function updateScheduledDaysUI(booth) {
     const normalized = normalizeScheduledDays(booth && booth.scheduled_days);
     if (scheduledDaysDisplay) {
@@ -68,6 +137,14 @@
     }
   }
 
+  // Helper to ensure website has a scheme
+  function normalizeWebsite(url) {
+    if (!url) return '';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return 'https://' + trimmed;
+  }
+
   function listRow(id, booth) {
     const name = (booth.biz && booth.biz.trim()) || (booth.vendor_name || '');
     const displayId = (MCPP.formatBoothId ? MCPP.formatBoothId(id) : id);
@@ -94,6 +171,8 @@
     }
 
     el.appendChild(tx);
+    // (previously we showed a small clickable website icon in the list row)
+    // Removed per request — keep list rows cleaner.
     el.addEventListener('click', () => {
       select(id);
       if (S.booths[id] && S.map) S.map.panTo(S.booths[id].center);
@@ -299,6 +378,78 @@
         if (phoneRowSel) phoneRowSel.style.display = '';
         if (emailRowSel) emailRowSel.style.display = '';
       }
+
+      // Update viewer-only clickable links for email and website
+      // Replace the viewer-only clickable anchors with small inline chain emoji
+      // placed next to the input fields. Respect email privacy (only show
+      // to admin or when email_public is true) and show website chain when
+      // a website value is present.
+      try {
+        const emailChain = document.getElementById('emailChain');
+        if (emailChain) {
+          const showEmail = !!(booth.email && (S.isAdmin || booth.email_public));
+          emailChain.classList.toggle('hidden', !showEmail);
+          emailChain.setAttribute('aria-hidden', showEmail ? 'false' : 'true');
+          if (showEmail) {
+            // Show a page emoji anchor that copies the email to clipboard on click.
+            emailChain.title = 'Copy email address';
+            emailChain.href = '#';
+            // override onclick to perform copy — use property to avoid multiple listeners
+            emailChain.onclick = function (e) {
+              try {
+                e.preventDefault();
+                const txt = (booth.email || '').trim();
+                if (!txt) return;
+                const done = () => {
+                  const prev = emailChain.title;
+                  emailChain.title = 'Copied!';
+                  try { showToast('Email copied to clipboard', 2000, emailChain); } catch (_) {}
+                  setTimeout(() => { emailChain.title = prev; }, 1400);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(txt).then(done).catch(() => {
+                    // fallback
+                    try {
+                      const ta = document.createElement('textarea');
+                      ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+                    } catch (_) { /* ignore */ }
+                  });
+                } else {
+                  try {
+                    const ta = document.createElement('textarea');
+                    ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+                  } catch (_) { /* ignore */ }
+                }
+              } catch (_) {}
+            };
+          } else {
+            emailChain.title = '';
+            emailChain.href = '#';
+            emailChain.onclick = null;
+          }
+        }
+      } catch (_) {}
+      try {
+        const websiteChain = document.getElementById('websiteChain');
+        if (websiteChain) {
+          const showSite = !!(booth.website && booth.website.trim());
+          websiteChain.classList.toggle('hidden', !showSite);
+          websiteChain.setAttribute('aria-hidden', showSite ? 'false' : 'true');
+          if (showSite) {
+            websiteChain.title = booth.website || 'Website available';
+            try { websiteChain.href = normalizeWebsite(booth.website || ''); } catch (_) { websiteChain.href = '#'; }
+            websiteChain.setAttribute('target', '_blank');
+            websiteChain.setAttribute('rel', 'noopener noreferrer');
+          } else {
+            websiteChain.title = '';
+            websiteChain.href = '#';
+            websiteChain.removeAttribute('target');
+            websiteChain.removeAttribute('rel');
+          }
+        }
+      } catch (_) {}
 
       const styleFn = MCPP.style || (() => ({ stroke: '#3f7f7f' }));
       const getCenter = MCPP.getVisualCenterAdjusted || ((b) => b.center);
