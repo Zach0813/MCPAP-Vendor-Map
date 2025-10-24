@@ -121,10 +121,14 @@
             
                   <div class="inline contact-row" id="emailRow">
                     <label class="grow">Email
-                      <input id="email" type="email" placeholder="name@example.com">
-                      <!-- viewer-only clickable email link -->
-                      <div id="emailViewer" class="viewer-only" style="margin-top:6px;">
-                        <a id="emailLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+                      <div style="display:flex;align-items:center;gap:8px;">
+                        <input id="email" type="email" placeholder="name@example.com">
+                        <!-- viewer-only clickable document icon shown when an email is present; clicking copies the email to clipboard -->
+                        <a id="emailChain" class="viewer-only contact-chain hidden" aria-hidden="true" title="Copy email address" href="#" aria-label="Copy email address">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 3.5L18.5 9H13V3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2z" />
+                          </svg>
+                        </a>
                       </div>
                     </label>
                     <label class="tiny nowrap">Hidden
@@ -133,10 +137,10 @@
                   </div>
 
                   <label class="grow">Website
-                    <input id="website" type="url" placeholder="https://example.com">
-                    <!-- viewer-only clickable website link -->
-                    <div id="websiteViewer" class="viewer-only" style="margin-top:6px;">
-                      <a id="websiteLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <input id="website" type="url" placeholder="https://example.com">
+                      <!-- viewer-only clickable chain emoji shown when a website is present -->
+                      <a id="websiteChain" class="viewer-only contact-chain hidden" aria-hidden="true" title="Website available" href="#" target="_blank" rel="noopener noreferrer">🔗</a>
                     </div>
                   </label>
 
@@ -230,4 +234,6 @@
   <script src="{{ url_for('static', filename='js/map-init.js') }}?v={{ cachebuster }}"></script>
   <script src="{{ url_for('static', filename='js/badges.js') }}?v={{ cachebuster }}"></script>
 </body>
+  <!-- Accessible toast for short messages (copy success etc.) -->
+  <div id="mcppToast" class="mcpp-toast" aria-live="polite" aria-atomic="true"></div>
 </html>
