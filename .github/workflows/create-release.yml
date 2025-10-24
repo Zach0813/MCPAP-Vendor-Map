@@ -1,7 +1,11 @@
 name: Create Release from RELEASE_NOTES
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.1) — if empty, the workflow will try to derive a tag'
+        required: false
   push:
     tags: ['v*']
 
@@ -19,16 +23,24 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const path = 'RELEASE_NOTES/v0.1.1.md';
+            // prefer explicit RELEASE_NOTES/v0.1.1.md, otherwise pick the first .md in the folder
             let body = '';
             try {
-              body = fs.readFileSync(path, 'utf8');
-            } catch (e) {
-              // fallback: try to find any RELEASE_NOTES file
-              const files = fs.readdirSync('RELEASE_NOTES').filter(f=>f.endsWith('.md'));
-              if (files.length) body = fs.readFileSync(`RELEASE_NOTES/${files[0]}`, 'utf8');
-            }
-            const tag = (context.payload.ref && context.payload.ref.replace('refs/tags/','')) || github.context.ref.replace('refs/tags/','') || 'v0.1.1';
+              const preferred = 'RELEASE_NOTES/v0.1.1.md';
+              if (fs.existsSync(preferred)) body = fs.readFileSync(preferred, 'utf8');
+              else {
+                const files = fs.existsSync('RELEASE_NOTES') ? fs.readdirSync('RELEASE_NOTES').filter(f=>f.endsWith('.md')) : [];
+                if (files.length) body = fs.readFileSync(`RELEASE_NOTES/${files[0]}`, 'utf8');
+              }
+            } catch (e) { body = '' }
+
+            // Resolve tag: prefer manual input, then payload ref (strip refs/...), then github.context.ref, else fallback
+            const inputTag = (context.payload && context.payload.inputs && context.payload.inputs.tag) ? context.payload.inputs.tag : null;
+            const refTag = (context.payload && context.payload.ref) ? context.payload.ref : (github.context && github.context.ref ? github.context.ref : null);
+            function cleanRef(r){ if (!r) return null; return r.replace(/^refs\/(tags|heads)\//,''); }
+            const tag = inputTag || cleanRef(refTag) || 'v0.1.1';
+
+            // Create the release
             await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
