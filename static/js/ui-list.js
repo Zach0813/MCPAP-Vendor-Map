@@ -463,13 +463,13 @@
           els.businessAddressPin.classList.toggle('hidden', !hasAddress);
           els.businessAddressPin.setAttribute('aria-hidden', hasAddress ? 'false' : 'true');
           if (hasAddress) {
-            els.businessAddressPin.title = 'Navigate to: ' + booth.business_address;
+            els.businessAddressPin.title = 'Open in Google Maps';
             els.businessAddressPin.onclick = function(e) {
               e.preventDefault();
               const addr = (booth.business_address || '').trim();
-              if (addr && els.addr) {
-                els.addr.value = addr;
-                if (els.locate) els.locate.click();
+              if (addr) {
+                const encodedAddr = encodeURIComponent(addr);
+                window.open('https://www.google.com/maps/search/?api=1&query=' + encodedAddr, '_blank');
               }
             };
           } else {
@@ -508,6 +508,68 @@
           }
         }
       } catch (_) {}
+
+      // In viewer mode, hide empty fields
+      if (!S.isAdmin) {
+        // Hide biz/business name if empty
+        const bizLabel = els.biz ? els.biz.closest('label') : null;
+        if (bizLabel) {
+          bizLabel.style.display = (booth.biz && booth.biz.trim()) ? '' : 'none';
+        }
+        
+        // Hide vendor name if empty
+        const vendorNameLabel = els.vendorName ? els.vendorName.closest('label') : null;
+        if (vendorNameLabel) {
+          vendorNameLabel.style.display = (booth.vendor_name && booth.vendor_name.trim()) ? '' : 'none';
+        }
+        
+        // Hide website if empty
+        const websiteLabel = els.website ? els.website.closest('label') : null;
+        if (websiteLabel) {
+          websiteLabel.style.display = (booth.website && booth.website.trim()) ? '' : 'none';
+        }
+        
+        // Hide notes if empty
+        const notesLabel = els.notes ? els.notes.closest('label') : null;
+        if (notesLabel) {
+          notesLabel.style.display = (booth.notes && booth.notes.trim()) ? '' : 'none';
+        }
+        
+        // Hide scheduled days if empty
+        const scheduleWrap = document.querySelector('.schedule-wrap');
+        if (scheduleWrap) {
+          const hasDays = booth.scheduled_days && booth.scheduled_days.length > 0;
+          const viewerElements = scheduleWrap.querySelectorAll('.viewer-only');
+          viewerElements.forEach(el => {
+            el.style.display = hasDays ? '' : 'none';
+          });
+        }
+      } else {
+        // In admin mode, show all fields
+        if (els.biz) {
+          const bizLabel = els.biz.closest('label');
+          if (bizLabel) bizLabel.style.display = '';
+        }
+        if (els.vendorName) {
+          const vendorNameLabel = els.vendorName.closest('label');
+          if (vendorNameLabel) vendorNameLabel.style.display = '';
+        }
+        if (els.website) {
+          const websiteLabel = els.website.closest('label');
+          if (websiteLabel) websiteLabel.style.display = '';
+        }
+        if (els.notes) {
+          const notesLabel = els.notes.closest('label');
+          if (notesLabel) notesLabel.style.display = '';
+        }
+        const scheduleWrap = document.querySelector('.schedule-wrap');
+        if (scheduleWrap) {
+          const viewerElements = scheduleWrap.querySelectorAll('.viewer-only');
+          viewerElements.forEach(el => {
+            el.style.display = '';
+          });
+        }
+      }
 
       const styleFn = MCPP.style || (() => ({ stroke: '#3f7f7f' }));
       const getCenter = MCPP.getVisualCenterAdjusted || ((b) => b.center);

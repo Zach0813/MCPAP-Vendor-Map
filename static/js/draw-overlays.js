@@ -336,7 +336,7 @@ function latLngFromAny(pt) {
       `color:${sel ? '#d6ff2e' : '#eaf6f5'}`,
       'font-weight:700',
       'font-size:12px',
-      'font-family:"Roboto Mono","Menlo","Courier New",monospace',
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif',
       'text-shadow:0 0 2px rgba(0,0,0,.6)',
       'transform:translate(-50%,-50%)',
       'display:flex',

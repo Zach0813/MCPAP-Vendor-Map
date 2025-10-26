@@ -80,6 +80,7 @@ const els = {
     returnVendor: $('returnVendor'),
     eventStaff: $('eventStaff'),
     panelStaffBadge: $('panelStaffBadge'),
+    badgeLegend: $('badgeLegend'),
     assign: $('assign'), unassign: $('unassign'), deleteBooth: $('deleteBooth')
   };
 
