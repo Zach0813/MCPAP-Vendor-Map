@@ -362,6 +362,8 @@
       if (els.phone) els.phone.value = (S.isAdmin || booth.phone_public) ? fmtPhone : '';
       if (els.email) els.email.value = (S.isAdmin || booth.email_public) ? (booth.email || '') : '';
       if (els.website) els.website.value = booth.website || '';
+      if (els.businessAddress) els.businessAddress.value = booth.business_address || '';
+      if (els.businessAddressViewer) els.businessAddressViewer.value = booth.business_address || '';
       if (els.phonePublic) els.phonePublic.checked = !booth.phone_public;
       if (els.emailPublic) els.emailPublic.checked = !booth.email_public;
       if (els.notes) els.notes.value = booth.notes || '';
@@ -403,7 +405,7 @@
                 const done = () => {
                   const prev = emailChain.title;
                   emailChain.title = 'Copied!';
-                  try { showToast('Email copied to clipboard', 2000, emailChain); } catch (_) {}
+                  try { showToast('Email copied', 2000, emailChain); } catch (_) {}
                   setTimeout(() => { emailChain.title = prev; }, 1400);
                 };
                 if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -447,6 +449,62 @@
             websiteChain.href = '#';
             websiteChain.removeAttribute('target');
             websiteChain.removeAttribute('rel');
+          }
+        }
+      } catch (_) {}
+
+      // Handle business address viewer mode display and pin click
+      try {
+        const hasAddress = !!(booth.business_address && booth.business_address.trim());
+        if (els.businessAddressViewerWrap) {
+          els.businessAddressViewerWrap.style.display = hasAddress ? '' : 'none';
+        }
+        if (els.businessAddressPin) {
+          els.businessAddressPin.classList.toggle('hidden', !hasAddress);
+          els.businessAddressPin.setAttribute('aria-hidden', hasAddress ? 'false' : 'true');
+          if (hasAddress) {
+            els.businessAddressPin.title = 'Navigate to: ' + booth.business_address;
+            els.businessAddressPin.onclick = function(e) {
+              e.preventDefault();
+              const addr = (booth.business_address || '').trim();
+              if (addr && els.addr) {
+                els.addr.value = addr;
+                if (els.locate) els.locate.click();
+              }
+            };
+          } else {
+            els.businessAddressPin.title = '';
+            els.businessAddressPin.onclick = null;
+          }
+        }
+        if (els.businessAddressCopy) {
+          els.businessAddressCopy.classList.toggle('hidden', !hasAddress);
+          els.businessAddressCopy.setAttribute('aria-hidden', hasAddress ? 'false' : 'true');
+          if (hasAddress) {
+            els.businessAddressCopy.title = 'Copy address';
+            els.businessAddressCopy.onclick = function(e) {
+              e.preventDefault();
+              const txt = (booth.business_address || '').trim();
+              if (!txt) return;
+              const done = () => {
+                const prev = els.businessAddressCopy.title;
+                els.businessAddressCopy.title = 'Copied!';
+                showToast('Address copied', 2000, els.businessAddressCopy);
+                setTimeout(() => { els.businessAddressCopy.title = prev; }, 2000);
+              };
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(txt).then(done).catch(() => {});
+              } else {
+                try {
+                  const ta = document.createElement('textarea');
+                  ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                  document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+                } catch (_) { /* ignore */ }
+              }
+            };
+          } else {
+            els.businessAddressCopy.title = '';
+            els.businessAddressCopy.onclick = null;
           }
         }
       } catch (_) {}

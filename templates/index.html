@@ -144,6 +144,32 @@
                     </div>
                   </label>
 
+                  <label class="grow admin-only">Business Address
+                    <textarea id="businessAddress" rows="2" placeholder="123 Main St&#10;City, State ZIP"></textarea>
+                  </label>
+
+                  <div class="viewer-only" id="businessAddressViewerWrap" style="display:none;">
+                    <label class="grow">Business Address
+                      <div style="display:flex;align-items:flex-start;gap:8px;">
+                        <textarea id="businessAddressViewer" rows="2" readonly style="flex:1;cursor:default;resize:none;" placeholder="Not provided"></textarea>
+                        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;margin-top:8px;">
+                          <!-- viewer-only clickable map pin icon shown when an address is present -->
+                          <a id="businessAddressPin" class="viewer-only contact-chain hidden" aria-hidden="true" title="Navigate to address" href="#" style="text-decoration:none;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                            </svg>
+                          </a>
+                          <!-- viewer-only clickable document icon to copy address -->
+                          <a id="businessAddressCopy" class="viewer-only contact-chain hidden" aria-hidden="true" title="Copy address" href="#" style="text-decoration:none;margin-top:4px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 3.5L18.5 9H13V3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2z" />
+                            </svg>
+                          </a>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
             <div class="schedule-wrap">
               <div class="viewer-only schedule-label">Scheduled Days</div>
               <div class="viewer-only" id="scheduledDaysDisplay">Not scheduled</div>
@@ -222,7 +248,7 @@
   <script src="{{ url_for('static', filename='mcpp-config.js') }}"></script>
 
   <!-- Google Maps API -->
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMCPPMap&loading=async&v=quarterly&libraries=marker"></script>
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMCPPMap&loading=async&v=quarterly&libraries=marker,places"></script>
   
   <!-- JS Modules -->
   <script src="{{ url_for('static', filename='js/core-state.js') }}?v={{ cachebuster }}"></script>

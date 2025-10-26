@@ -48,7 +48,7 @@ def save_booths(obj):
 
 @app.route("/")
 def index():
-    defaults = {"center": {"lat": 45.783, "lng": -108.5}, "zoom": 20}
+    defaults = {"center": {"lat": 45.783611, "lng": -108.542778}, "zoom": 20}
     return render_template(
         "index.html",
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
@@ -59,7 +59,32 @@ def index():
 
 @app.route('/favicon.ico')
 def favicon():
-    return send_from_directory(app.static_folder, 'favicon.ico')
+    # Try several candidate locations for favicon.ico so the app works
+    # regardless of platform or how static_folder was configured.
+    candidates = []
+    try:
+        if app.static_folder:
+            candidates.append(Path(app.static_folder))
+    except Exception:
+        pass
+    # common locations relative to the app root
+    candidates.append(Path(app.root_path) / "static")
+    # fallback: repository-local static dir next to this file
+    candidates.append(Path(__file__).parent / "static")
+
+    for candidate in candidates:
+        try:
+            if candidate and candidate.exists():
+                ico = candidate / "favicon.ico"
+                if ico.exists():
+                    return send_from_directory(str(candidate), 'favicon.ico')
+        except Exception:
+            # ignore and try next candidate
+            continue
+
+    # If no favicon found, return a 204 No Content to avoid errors
+    # (safe universal response for environments without the static dir)
+    return '', 204
 
 # Server-backed role API
 @app.route("/api/who")
@@ -114,4 +139,4 @@ def logout_alias():
     return api_logout()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

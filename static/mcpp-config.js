@@ -2,7 +2,7 @@
 const START_ZOOM = 20;
 const FT = 0.3048;
 const SNAP = 10;
-const DEFAULT_CENTER = { lat: 45.783, lng: -108.5 };
+const DEFAULT_CENTER = { lat: 45.783611, lng: -108.542778 };
 const KNOB_RADIUS_PX_FALLBACK = 28;
 
 const CAT = {

@@ -128,6 +128,7 @@
         phone: '',
         email: '',
         website: '',
+        business_address: '',
         notes: '',
         category: cat,
         logo_url: '',
@@ -173,6 +174,7 @@
         phone: '',
         email: '',
         website: '',
+        business_address: '',
         notes: '',
         logo_url: '',
         phone_public: false,
@@ -213,6 +215,7 @@
       if (els.phone) els.phone.value = fmtPhone;
       booth.email = (els.email.value || '').trim();
       booth.website = (els.website.value || '').trim();
+      booth.business_address = (els.businessAddress && els.businessAddress.value || '').trim();
       booth.notes = (els.notes.value || '').trim();
       booth.logo_url = (els.logoUrl.value || '').trim();
       booth.phone_public = !els.phonePublic.checked;
@@ -268,6 +271,7 @@
       booth.phone = '';
       booth.email = '';
       booth.website = '';
+      booth.business_address = '';
       booth.notes = '';
       booth.phone_public = false;
       booth.email_public = false;
@@ -405,15 +409,198 @@
   }
 
   if (els.locate) {
+    // Store the location marker at module scope
+    let locationMarker = null;
+    
+    // Helper function to remove location marker
+    const removeLocationMarker = () => {
+      if (locationMarker) {
+        try {
+          locationMarker.setMap(null);
+          google.maps.event.clearInstanceListeners(locationMarker);
+        } catch (e) {
+          console.error('Error removing marker:', e);
+        }
+        locationMarker = null;
+      }
+    };
+    
+    // Expose globally so other parts can clear it
+    MCPP.removeLocationMarker = removeLocationMarker;
+    
+    // Initialize Google Places Autocomplete on the address input
+    const initAutocomplete = () => {
+      if (!els.addr) return;
+      if (!window.google || !google.maps || !google.maps.places || !google.maps.places.Autocomplete) {
+        console.warn('Google Places API not loaded yet');
+        return;
+      }
+      
+      const autocomplete = new google.maps.places.Autocomplete(els.addr, {
+        fields: ['geometry', 'formatted_address', 'name', 'address_components'],
+        types: ['address']
+      });
+
+      // Listen for place selection from autocomplete dropdown
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        
+        if (!place.geometry || !place.geometry.location) {
+          // User pressed Enter without selecting from dropdown
+          return;
+        }
+
+        // Update input with formatted address immediately when selected
+        const displayAddress = place.formatted_address || place.name || '';
+        els.addr.value = displayAddress;
+
+        // Remove previous location marker if it exists
+        removeLocationMarker();
+
+        // Add a standard red marker at the location
+        if (S.map) {
+          locationMarker = new google.maps.Marker({
+            position: place.geometry.location,
+            map: S.map,
+            title: displayAddress,
+            animation: google.maps.Animation.DROP,
+            zIndex: 9999,
+            clickable: true,
+            cursor: 'pointer'
+          });
+          
+          // Remove marker when clicked
+          google.maps.event.addListener(locationMarker, 'click', function() {
+            removeLocationMarker();
+          });
+        }
+
+        // Valid place selected from dropdown - navigate to it at zoom level 18
+        if (S.map) {
+          const vp = place.geometry.viewport || new google.maps.LatLngBounds(
+            place.geometry.location,
+            place.geometry.location
+          );
+          const prevMin = S.map.get('minZoom');
+          S.map.setOptions({ minZoom: 18 });
+          S.map.fitBounds(vp, { top: 40, bottom: 40, left: 20, right: 20 });
+          const once = S.map.addListener('idle', () => {
+            S.map.setOptions({ minZoom: (prevMin == null ? 2 : prevMin) });
+            S.didInitialViewport = true;
+            if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
+            google.maps.event.removeListener(once);
+          });
+        }
+      });
+      
+      console.log('Places Autocomplete initialized');
+    };
+    
+    // Initialize autocomplete for business address field
+    const initBusinessAddressAutocomplete = () => {
+      if (!els.businessAddress) return;
+      if (!window.google || !google.maps || !google.maps.places || !google.maps.places.Autocomplete) {
+        return;
+      }
+      
+      const businessAutocomplete = new google.maps.places.Autocomplete(els.businessAddress, {
+        fields: ['formatted_address', 'address_components'],
+        types: ['address']
+      });
+
+      // Update field with formatted address in mailing format when selected
+      businessAutocomplete.addListener('place_changed', () => {
+        const place = businessAutocomplete.getPlace();
+        if (place.address_components && place.address_components.length) {
+          // Parse address components to format as mailing address
+          let street = '';
+          let city = '';
+          let state = '';
+          let zip = '';
+          
+          for (const component of place.address_components) {
+            const types = component.types;
+            if (types.includes('street_number')) {
+              street = component.long_name + ' ' + street;
+            } else if (types.includes('route')) {
+              street += component.long_name;
+            } else if (types.includes('locality')) {
+              city = component.long_name;
+            } else if (types.includes('administrative_area_level_1')) {
+              state = component.short_name;
+            } else if (types.includes('postal_code')) {
+              zip = component.long_name;
+            }
+          }
+          
+          // Format as two lines: "Street\nCity, State ZIP"
+          const line1 = street.trim();
+          const line2 = [city, state, zip].filter(Boolean).join(' ').replace(/\s+/g, ' ').replace(/(\w+)\s+(\w{2})\s+/, '$1, $2 ');
+          const formattedAddress = [line1, line2].filter(Boolean).join('\n');
+          
+          els.businessAddress.value = formattedAddress || place.formatted_address;
+          
+          // Trigger change to update booth data if needed
+          if (S.selected && S.booths[S.selected]) {
+            S.booths[S.selected].business_address = els.businessAddress.value;
+          }
+        } else if (place.formatted_address) {
+          els.businessAddress.value = place.formatted_address;
+          if (S.selected && S.booths[S.selected]) {
+            S.booths[S.selected].business_address = place.formatted_address;
+          }
+        }
+      });
+      
+      console.log('Business Address Autocomplete initialized');
+    };
+
+    // Try to initialize immediately if API is ready
+    if (window.google && google.maps && google.maps.places) {
+      initAutocomplete();
+      initBusinessAddressAutocomplete();
+    }
+    
+    // Also try after a short delay to handle async loading
+    setTimeout(() => {
+      initAutocomplete();
+      initBusinessAddressAutocomplete();
+    }, 1000);
+    
+    // And expose it globally so map-init can call it when ready
+    MCPP.initAutocomplete = initAutocomplete;
+    MCPP.initBusinessAddressAutocomplete = initBusinessAddressAutocomplete;
+
     els.locate.addEventListener('click', () => {
       const q = els.addr && els.addr.value.trim();
       if (!q) return;
+      
+      // Fall back to geocoding the address string
       if (!S.geocoder) S.geocoder = new google.maps.Geocoder();
       S.geocoder.geocode({ address: q }, (res, status) => {
         if (status === 'OK' && res[0]) {
+          // Remove previous location marker if it exists
+          removeLocationMarker();
+
+          // Add a standard red marker at the location
+          locationMarker = new google.maps.Marker({
+            position: res[0].geometry.location,
+            map: S.map,
+            title: res[0].formatted_address || q,
+            animation: google.maps.Animation.DROP,
+            zIndex: 9999,
+            clickable: true,
+            cursor: 'pointer'
+          });
+          
+          // Remove marker when clicked
+          google.maps.event.addListener(locationMarker, 'click', function() {
+            removeLocationMarker();
+          });
+
           const vp = res[0].geometry.viewport || new google.maps.LatLngBounds(res[0].geometry.location, res[0].geometry.location);
           const prevMin = S.map.get('minZoom');
-          S.map.setOptions({ minZoom: START_ZOOM });
+          S.map.setOptions({ minZoom: 18 });
           S.map.fitBounds(vp, { top: 40, bottom: 40, left: 20, right: 20 });
           const once = S.map.addListener('idle', () => {
             S.map.setOptions({ minZoom: (prevMin == null ? 2 : prevMin) });
@@ -430,6 +617,11 @@
 
   if (els.fit) {
     els.fit.addEventListener('click', () => {
+      // Remove location marker when re-centering
+      if (typeof MCPP.removeLocationMarker === 'function') {
+        MCPP.removeLocationMarker();
+      }
+      
       if (!Object.keys(S.shapes).length) return;
       const bounds = new google.maps.LatLngBounds();
       Object.values(S.shapes).forEach((shape) => shape.poly.getPath().forEach((ll) => bounds.extend(ll)));
