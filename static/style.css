@@ -387,9 +387,11 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
   .badge-legend-drawer.open { transform: translateX(0); }
 
   /* tab handle: vertical rotated chevron */
-  .badge-legend-tab { position: fixed; top: 60px; right: calc(min(88vw,320px) + 2px); width: 44px; height: 64px; display:inline-flex; align-items:center; justify-content:center; background:var(--card); border:1px solid var(--border); border-radius:8px 0 0 8px; z-index: 70; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
-  .badge-legend-tab .chev { width:18px; height:18px; transform: rotate(90deg); display:block; }
-  .badge-legend-tab[aria-expanded="true"] { background: linear-gradient(180deg,var(--accent),var(--accent-dark)); color: #fff; }
+  /* Tab travels with the legend drawer (positioned relative to the drawer) */
+  .badge-legend-drawer{ overflow: visible; }
+  .badge-legend-drawer .badge-legend-tab { position: absolute; left: -40px; bottom: 20px; width: 40px; height: 48px; display:inline-flex; align-items:center; justify-content:center; background:var(--card); border:1px solid var(--border); border-radius:8px 0 0 8px; z-index: 70; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+  .badge-legend-drawer .badge-legend-tab .chev { width:14px; height:14px; transform: rotate(90deg); display:block; }
+  .badge-legend-drawer .badge-legend-tab[aria-expanded="true"] { background: linear-gradient(180deg,var(--accent),var(--accent-dark)); color: #fff; }
 
   /* legend content inside drawer */
   .badge-legend { padding: 10px; }
