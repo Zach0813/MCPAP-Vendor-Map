@@ -783,6 +783,89 @@
     } catch (err) { console.warn('drawer toggle init failed', err); }
   })();
 
+  /* Badge legend drawer toggle (right-side, mobile-only) */
+  (function attachLegendToggle(){
+    try {
+      const tab = document.getElementById('badgeLegendTab');
+      const drawer = document.getElementById('badgeLegendDrawer');
+      if (!tab || !drawer) return;
+
+      let lastFocus = null;
+
+      // ensure initial aria state
+      const isOpen = drawer.classList.contains('open');
+      tab.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+      // create backdrop for legend if missing
+      let backdrop = document.querySelector('.badge-legend-backdrop');
+      if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.className = 'badge-legend-backdrop';
+        document.body.appendChild(backdrop);
+      }
+
+      const closeBtn = document.getElementById('badgeLegendClose');
+
+      function getFocusableInLegend(){
+        return Array.from(drawer.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+          .filter((el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+      }
+
+      function trapTabLegend(e){
+        if (e.key !== 'Tab') return;
+        const focusable = getFocusableInLegend();
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+          if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      }
+
+      function openLegend(){
+        lastFocus = document.activeElement;
+        drawer.classList.add('open');
+        tab.setAttribute('aria-expanded', 'true');
+        backdrop.classList.add('visible');
+        document.body.classList.add('badge-legend-open');
+        drawer.setAttribute('aria-hidden', 'false');
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+          if (closeBtn) closeBtn.focus(); else {
+            const focusable = getFocusableInLegend(); if (focusable.length) focusable[0].focus();
+          }
+          document.addEventListener('keydown', trapTabLegend);
+        }, 260);
+      }
+
+      function closeLegend(){
+        drawer.classList.remove('open');
+        tab.setAttribute('aria-expanded', 'false');
+        backdrop.classList.remove('visible');
+        document.body.classList.remove('badge-legend-open');
+        drawer.setAttribute('aria-hidden', 'true');
+        document.removeEventListener('keydown', trapTabLegend);
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+          try { if (lastFocus && lastFocus.focus) lastFocus.focus(); else tab.focus(); } catch(_){}
+        }, 260);
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => { e.preventDefault(); closeLegend(); });
+      }
+
+      tab.addEventListener('click', (e) => { e.preventDefault(); if (drawer.classList.contains('open')) closeLegend(); else openLegend(); });
+
+      backdrop.addEventListener('click', (e) => { e.preventDefault(); closeLegend(); });
+
+      // close on Escape (safeguard)
+      window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && drawer.classList.contains('open')) closeLegend(); });
+    } catch (err) { console.warn('badge legend toggle init failed', err); }
+  })();
+
 Object.assign(MCPP, {
     listRow,
     refreshList,

@@ -374,8 +374,28 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
   .drawer-backdrop{ position: fixed; inset: 52px 0 0 0; background: rgba(0,0,0,0.44); z-index: 50; opacity: 0; pointer-events: none; transition: opacity .18s ease; }
   .drawer-backdrop.visible{ opacity: 1; pointer-events: auto; }
 
+  /* badge legend backdrop — same visual behavior but sits beneath the legend drawer */
+  .badge-legend-backdrop{ position: fixed; inset: 52px 0 0 0; background: rgba(0,0,0,0.44); z-index: 61; opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+  .badge-legend-backdrop.visible{ opacity: 1; pointer-events: auto; }
+
   /* map should remain full-bleed behind drawer */
   .map-wrap{ z-index: 1 }
+
+  /* Badge legend drawer/tab (mobile-only) */
+  /* We'll place the tab on the right edge; the drawer slides in from the right */
+  .badge-legend-drawer { position: fixed; top: 52px; right: 0; bottom: 0; width: min(88vw,320px); max-width: 320px; transform: translateX(105%); transition: transform .28s cubic-bezier(.2,.9,.2,1); z-index: 62; box-shadow: -8px 0 30px rgba(0,0,0,0.6); background: linear-gradient(180deg,var(--card),var(--card-2)); padding-bottom: 20px; }
+  .badge-legend-drawer.open { transform: translateX(0); }
+
+  /* tab handle: vertical rotated chevron */
+  .badge-legend-tab { position: fixed; top: 60px; right: calc(min(88vw,320px) + 2px); width: 44px; height: 64px; display:inline-flex; align-items:center; justify-content:center; background:var(--card); border:1px solid var(--border); border-radius:8px 0 0 8px; z-index: 70; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+  .badge-legend-tab .chev { width:18px; height:18px; transform: rotate(90deg); display:block; }
+  .badge-legend-tab[aria-expanded="true"] { background: linear-gradient(180deg,var(--accent),var(--accent-dark)); color: #fff; }
+
+  /* legend content inside drawer */
+  .badge-legend { padding: 10px; }
+  .badge-legend .legend-list { display:flex; flex-direction:column; gap:10px; }
+  .badge-legend .legend-item { display:flex; gap:10px; align-items:center; }
+  .badge-legend .legend-label { font-size:14px; color:var(--ink); }
 }
 
 /* Drawer close button (mobile) */
