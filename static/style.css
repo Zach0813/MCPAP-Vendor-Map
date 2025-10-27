@@ -381,6 +381,9 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
   /* map should remain full-bleed behind drawer */
   .map-wrap{ z-index: 1 }
 
+  /* Hide the inline/original badge legend on narrow screens (we provide the drawer instead) */
+  #badgeLegend { display: none; }
+
   /* Badge legend drawer/tab (mobile-only) */
   /* We'll place the tab on the right edge; the drawer slides in from the right */
   .badge-legend-drawer { position: fixed; top: 52px; right: 0; bottom: 0; width: min(88vw,320px); max-width: 320px; transform: translateX(105%); transition: transform .28s cubic-bezier(.2,.9,.2,1); z-index: 62; box-shadow: -8px 0 30px rgba(0,0,0,0.6); background: linear-gradient(180deg,var(--card),var(--card-2)); padding-bottom: 20px; }
@@ -390,8 +393,11 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
   /* Tab travels with the legend drawer (positioned relative to the drawer) */
   .badge-legend-drawer{ overflow: visible; }
   .badge-legend-drawer .badge-legend-tab { position: absolute; left: -40px; bottom: 20px; width: 40px; height: 48px; display:inline-flex; align-items:center; justify-content:center; background:var(--card); border:1px solid var(--border); border-radius:8px 0 0 8px; z-index: 70; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
-  .badge-legend-drawer .badge-legend-tab .chev { width:14px; height:14px; transform: rotate(90deg); display:block; }
+  /* Make the tab chevron point left when closed (rotate 180deg), right when open (rotate 0). Keep chevron white for visibility */
+  .badge-legend-drawer .badge-legend-tab { color: #fff; background: rgba(0,0,0,0.48); border-color: rgba(255,255,255,0.12); }
+  .badge-legend-drawer .badge-legend-tab .chev { width:14px; height:14px; transform: rotate(180deg); display:block; color: currentColor; }
   .badge-legend-drawer .badge-legend-tab[aria-expanded="true"] { background: linear-gradient(180deg,var(--accent),var(--accent-dark)); color: #fff; }
+  .badge-legend-drawer .badge-legend-tab[aria-expanded="true"] .chev { transform: rotate(0deg); }
 
   /* legend content inside drawer */
   .badge-legend { padding: 10px; }
