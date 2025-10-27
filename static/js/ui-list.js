@@ -696,12 +696,14 @@
     if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
   }
 
-  /* Drawer toggle: accessible off-canvas sidebar control for small screens */
+  /* Drawer toggle: accessible off-canvas sidebar control for small screens (with focus management) */
   (function attachDrawerToggle(){
     try {
       const toggle = document.getElementById('drawerToggle');
       const drawer = document.getElementById('drawer');
       if (!toggle || !drawer) return;
+
+      let lastFocus = null;
 
       // ensure initial aria state matches class
       const isOpen = drawer.classList.contains('open');
@@ -715,13 +717,44 @@
         document.body.appendChild(backdrop);
       }
 
+      const closeBtn = document.getElementById('drawerClose');
+
+      function focusFirstInDrawer(){
+        const focusable = drawer.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusable && focusable.length) focusable[0].focus();
+      }
+
+      function getFocusableInDrawer(){
+        return Array.from(drawer.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+          .filter((el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+      }
+
+      function trapTab(e){
+        if (e.key !== 'Tab') return;
+        const focusable = getFocusableInDrawer();
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+          if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      }
+
       function openDrawer(){
+        lastFocus = document.activeElement;
         drawer.classList.add('open');
         toggle.setAttribute('aria-expanded', 'true');
         backdrop.classList.add('visible');
         document.body.classList.add('drawer-open');
         // give map a moment to reflow; some map libs respond to resize
-        setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+          // focus management: focus the close button (if present) or first focusable element
+          if (closeBtn) closeBtn.focus(); else focusFirstInDrawer();
+          document.addEventListener('keydown', trapTab);
+        }, 260);
       }
 
       function closeDrawer(){
@@ -729,20 +762,24 @@
         toggle.setAttribute('aria-expanded', 'false');
         backdrop.classList.remove('visible');
         document.body.classList.remove('drawer-open');
-        setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+        document.removeEventListener('keydown', trapTab);
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+          try { if (lastFocus && lastFocus.focus) lastFocus.focus(); else toggle.focus(); } catch (_) {}
+        }, 260);
       }
 
-      toggle.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (drawer.classList.contains('open')) closeDrawer(); else openDrawer();
-      });
+      // wire close button (if present)
+      if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => { e.preventDefault(); closeDrawer(); });
+      }
+
+      toggle.addEventListener('click', (e) => { e.preventDefault(); if (drawer.classList.contains('open')) closeDrawer(); else openDrawer(); });
 
       backdrop.addEventListener('click', (e) => { e.preventDefault(); closeDrawer(); });
 
-      // close on Escape
-      window.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
-      });
+      // close on Escape (safeguard)
+      window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && drawer.classList.contains('open')) closeDrawer(); });
     } catch (err) { console.warn('drawer toggle init failed', err); }
   })();
 

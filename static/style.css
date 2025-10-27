@@ -370,6 +370,28 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
   .map-wrap{ z-index: 1 }
 }
 
+/* Drawer close button (mobile) */
+@media (max-width:520px){
+  .drawer-close{
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.04);
+    background: rgba(255,255,255,0.02);
+    color: var(--ink);
+    font-size: 18px;
+    z-index: 70;
+    cursor: pointer;
+  }
+  .drawer-close:focus{ outline: 2px solid var(--accent); outline-offset: 2px }
+}
+
 /* NEW: generic hide helper */
 .hidden { display: none !important; }
 
