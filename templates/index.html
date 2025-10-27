@@ -333,13 +333,19 @@
       </div>
       <div id="map"></div>
       
-      <!-- Badge Legend (collapsible, visible in both admin and viewer mode) -->
-      <div id="badgeLegend" class="badge-legend">
+      <!-- Badge Legend (collapsible, visible in both admin and viewer mode). Now acts as mobile drawer. -->
+      <div id="badgeLegend" class="badge-legend badge-legend-drawer" aria-hidden="true">
         <div class="legend-header">
           <div class="legend-title">Badge Legend</div>
           <button class="legend-toggle" aria-label="Toggle legend" title="Collapse/Expand">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <!-- close control for mobile drawer behavior -->
+          <button id="badgeLegendClose" type="button" class="drawer-close" aria-label="Close badge legend" title="Close badge legend">
+            <svg class="icon-close" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+              <path d="M6.5 6.5 L17.5 17.5 M17.5 6.5 L6.5 17.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </button>
         </div>
@@ -378,49 +384,15 @@
           </div>
         </div>
       </div>
+      <!-- badge legend tab placed immediately after the legend so CSS adjacent selector can position it relative to the drawer -->
+      <button id="badgeLegendTab" class="badge-legend-tab" aria-controls="badgeLegend" aria-expanded="false" aria-label="Toggle badge legend" title="Badge legend">
+        <svg class="chev" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+          <path d="M8 5l8 7-8 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
     </section>
   </main>
-
-  <!-- Badge legend drawer (separate right-side drawer for mobile) -->
-  <aside id="badgeLegendDrawer" class="badge-legend-drawer" aria-hidden="true">
-    <button id="badgeLegendClose" type="button" class="drawer-close" aria-label="Close badge legend" title="Close badge legend">
-      <svg class="icon-close" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-        <path d="M6.5 6.5 L17.5 17.5 M17.5 6.5 L6.5 17.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    </button>
-    <div class="badge-legend">
-      <div class="panel-head"><div class="title">Badge legend</div></div>
-      <div class="panel-content">
-        <div class="legend-list">
-          <div class="legend-item">
-            <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><use href="#badge-event-staff"/></svg>
-            <div class="legend-label">Event staff</div>
-          </div>
-          <div class="legend-item">
-            <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><use href="#badge-partner-vendor"/></svg>
-            <div class="legend-label">Partner vendor</div>
-          </div>
-          <div class="legend-item">
-            <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><use href="#badge-featured-vendor"/></svg>
-            <div class="legend-label">Featured vendor</div>
-          </div>
-          <div class="legend-item">
-            <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><use href="#badge-returning-vendor"/></svg>
-            <div class="legend-label">Returning vendor</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- badge legend tab (fixed, visible when drawer closed; slides to drawer edge when open) -->
-  <button id="badgeLegendTab" class="badge-legend-tab" aria-controls="badgeLegendDrawer" aria-expanded="false" aria-label="Toggle badge legend" title="Badge legend">
-    <svg class="chev" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-      <path d="M8 5l8 7-8 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-  </button>
-
-
+  
   <script id="bootstrap" type="application/json">
   {{ {'DEFAULTS': defaults, 'MAP_ID': map_id}|tojson }}
   </script>

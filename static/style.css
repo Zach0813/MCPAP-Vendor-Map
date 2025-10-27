@@ -381,8 +381,7 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
   /* map should remain full-bleed behind drawer */
   .map-wrap{ z-index: 1 }
 
-  /* Hide the inline/original badge legend on narrow screens (we provide the drawer instead) */
-  #badgeLegend { display: none; }
+  /* original inline legend is now used as the mobile drawer (no need to hide) */
 
   /* Badge legend drawer/tab (mobile-only) */
   /* We'll place the tab on the right edge; the drawer slides in from the right */

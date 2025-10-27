@@ -787,7 +787,7 @@
   (function attachLegendToggle(){
     try {
       const tab = document.getElementById('badgeLegendTab');
-      const drawer = document.getElementById('badgeLegendDrawer');
+  const drawer = document.getElementById('badgeLegend');
       if (!tab || !drawer) return;
 
       let lastFocus = null;
@@ -804,7 +804,7 @@
         document.body.appendChild(backdrop);
       }
 
-      const closeBtn = document.getElementById('badgeLegendClose');
+  const closeBtn = document.getElementById('badgeLegendClose');
 
       function getFocusableInLegend(){
         return Array.from(drawer.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'))
