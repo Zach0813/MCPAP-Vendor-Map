@@ -374,18 +374,19 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
 @media (max-width:520px){
   .drawer-close{
     position: absolute;
-    top: 8px;
+    top: 6px; /* slightly higher so it visually centers under the 52px header */
     right: 8px;
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 6px;
     border: 1px solid rgba(255,255,255,0.04);
     background: rgba(255,255,255,0.02);
     color: var(--ink);
-    font-size: 18px;
+    font-size: 16px;
+    line-height: 1;
     z-index: 70;
     cursor: pointer;
   }
