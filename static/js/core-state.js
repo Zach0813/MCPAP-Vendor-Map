@@ -4,8 +4,8 @@
   const MCPP = window.MCPP = window.MCPP || {};
 
   const SCHEDULED_DAY_OPTIONS = [
-    { value: 'saturday', short: 'Sat', full: 'Saturday' },
-    { value: 'sunday', short: 'Sun', full: 'Sunday' }
+    { value: 'saturday', short: 'Sat', full: 'Saturday', date: 'Saturday - May 16, 2025' },
+    { value: 'sunday', short: 'Sun', full: 'Sunday', date: 'Sunday - May 17, 2025' }
   ];
   const SCHEDULED_DAY_ORDER = SCHEDULED_DAY_OPTIONS.map((opt) => opt.value);
   const SCHEDULED_DAY_MAP = SCHEDULED_DAY_OPTIONS.reduce((acc, opt) => {
@@ -79,6 +79,8 @@ const els = {
     returnVendorDisplay: $('returnVendorDisplay'),
     returnVendor: $('returnVendor'),
     eventStaff: $('eventStaff'),
+    partnerVendor: $('partnerVendor'),
+    featuredVendor: $('featuredVendor'),
     panelStaffBadge: $('panelStaffBadge'),
     badgeLegend: $('badgeLegend'),
     assign: $('assign'), unassign: $('unassign'), deleteBooth: $('deleteBooth')
@@ -89,19 +91,21 @@ const els = {
     const container = els.scheduledDaysOptions;
     container.innerHTML = '';
     const frag = document.createDocumentFragment();
-    SCHEDULED_DAY_OPTIONS.forEach(({ value, full }) => {
+    SCHEDULED_DAY_OPTIONS.forEach(({ value, date }) => {
       const id = `scheduledDay_${value}`;
       const label = document.createElement('label');
       label.className = 'scheduled-day-option';
+      const span = document.createElement('span');
+      span.className = 'day-label';
+      span.textContent = date;
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.value = value;
       input.name = 'scheduledDayOption';
       input.id = id;
-      const span = document.createElement('span');
-      span.textContent = full;
-      label.appendChild(input);
+      // Don't set disabled state here - will be set after S is initialized
       label.appendChild(span);
+      label.appendChild(input);
       frag.appendChild(label);
     });
     container.appendChild(frag);
@@ -123,11 +127,37 @@ const els = {
 
   window.S = S;
 
+  function updateScheduledDaysCheckboxStates() {
+    // Update checkbox visibility based on admin status
+    if (!els.scheduledDaysOptions) return;
+    const labels = els.scheduledDaysOptions.querySelectorAll('.scheduled-day-option');
+    
+    if (S.isAdmin) {
+      // Admin mode: show all dates with checkboxes
+      labels.forEach(label => {
+        label.style.display = '';
+        const checkbox = label.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.style.display = '';
+      });
+    } else {
+      // Viewer mode: hide checkboxes and unselected dates
+      labels.forEach(label => {
+        const checkbox = label.querySelector('input[type="checkbox"]');
+        if (checkbox) {
+          checkbox.style.display = 'none';
+          // Hide the entire label if checkbox is not checked
+          label.style.display = checkbox.checked ? '' : 'none';
+        }
+      });
+    }
+  }
+
   MCPP.$ = $;
   MCPP.els = els;
   MCPP.S = S;
   MCPP.canAdv = false;
   MCPP.hasMapId = !!(window.__MAP_ID__ && String(window.__MAP_ID__).trim());
+  MCPP.updateScheduledDaysCheckboxStates = updateScheduledDaysCheckboxStates;
 
   function formatPhoneNumber(value) {
     const raw = String(value || '').trim();
@@ -304,6 +334,7 @@ const els = {
     roleBadge();
     if (els.loginBtn) els.loginBtn.textContent = S.isAdmin ? 'Logout' : 'Login';
     setRO(!S.isAdmin);
+    updateScheduledDaysCheckboxStates();
     resetToListPanel();
   }
 
@@ -328,6 +359,9 @@ const els = {
       booth.category = normalize(booth.category || 'standard');
       booth.phone = formatPhoneNumber(booth.phone || '');
       booth.is_return_vendor = !!booth.is_return_vendor;
+      booth.is_event_staff = !!booth.is_event_staff;
+      booth.is_partner_vendor = !!booth.is_partner_vendor;
+      booth.is_featured_vendor = !!booth.is_featured_vendor;
       booth.scheduled_days = normalizeScheduledDays(booth.scheduled_days || []);
       if (typeof MCPP.normalizeBoothGeometry === 'function') {
         MCPP.normalizeBoothGeometry(booth);

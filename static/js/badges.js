@@ -110,7 +110,7 @@
         if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(false);
         else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(false);
         else if (sh.labelEl) sh.labelEl.style.display = 'none';
-        sh.badgeOverlay = existing.marker;
+        sh.logoBadgeOverlay = existing.marker;
         sh.badgeHiddenByOverlap = existing.hiddenByOverlap === true;
         sh.badgeBaseVisible = existing.baseVisible !== false;
       }
@@ -145,7 +145,8 @@
     wrap.appendChild(el);
 
     const anchor = badgeAnchorForBooth(b);
-    const marker = MCPP.createDomOverlay(S.map, wrap, anchor, { zIndex: 0, pane: 'floatPane' });
+    // Logo badge should be above label (zIndex: 100) but below status badge (zIndex: 300)
+    const marker = MCPP.createDomOverlay(S.map, wrap, anchor, { zIndex: 200, pane: 'floatPane' });
     if (!marker) { return; }
 
     S.logoBadges[id] = { marker, wrap, el, img, hiddenByOverlap: false, baseVisible: true };
@@ -154,7 +155,7 @@
       if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(false);
       else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(false);
       else if (sh.labelEl) sh.labelEl.style.display = 'none';
-      sh.badgeOverlay = marker;
+      sh.logoBadgeOverlay = marker;
       sh.badgeHiddenByOverlap = false;
       sh.badgeBaseVisible = true;
     }
@@ -175,7 +176,7 @@
       if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(true);
       else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(true);
       else if (sh.labelEl) sh.labelEl.style.display = '';
-      sh.badgeOverlay = null;
+      sh.logoBadgeOverlay = null;
       sh.badgeHiddenByOverlap = false;
       sh.badgeBaseVisible = false;
     }
@@ -197,7 +198,7 @@
     if (badge.el) badge.el.style.display = show ? 'block' : 'none';
     const sh = S.shapes && S.shapes[id];
     if (sh) {
-      sh.badgeOverlay = badge.marker;
+      sh.logoBadgeOverlay = badge.marker;
       sh.badgeHiddenByOverlap = badge.hiddenByOverlap;
       sh.badgeBaseVisible = show;
     }
@@ -234,16 +235,12 @@
             else if (sh.labelEl) sh.labelEl.style.display = 'none';
           }
           destroyLogoBadge(id);
-          // also hide any return vendor overlay when badges/labels are globally hidden
+          // also hide any badge overlay when badges/labels are globally hidden
           try {
             const shHide = S.shapes && S.shapes[id];
-            if (shHide && shHide.returnOverlay) {
-              if (typeof shHide.returnOverlay.setVisible === 'function') shHide.returnOverlay.setVisible(false);
-              else if (typeof shHide.returnOverlay.setMap === 'function') shHide.returnOverlay.setMap(null);
-            }
-            if (shHide && shHide.staffOverlay) {
-              if (typeof shHide.staffOverlay.setVisible === 'function') shHide.staffOverlay.setVisible(false);
-              else if (typeof shHide.staffOverlay.setMap === 'function') shHide.staffOverlay.setMap(null);
+            if (shHide && shHide.badgeOverlay) {
+              if (typeof shHide.badgeOverlay.setVisible === 'function') shHide.badgeOverlay.setVisible(false);
+              else if (typeof shHide.badgeOverlay.setMap === 'function') shHide.badgeOverlay.setMap(null);
             }
           } catch (e) {}
           continue;
@@ -258,16 +255,12 @@
             else if (sh.labelEl) sh.labelEl.style.display = '';
           }
           destroyLogoBadge(id);
-          // hide return overlay in midBand (labels-only)
+          // hide badge overlay in midBand (labels-only)
           try {
             const shMid = S.shapes && S.shapes[id];
-            if (shMid && shMid.returnOverlay) {
-              if (typeof shMid.returnOverlay.setVisible === 'function') shMid.returnOverlay.setVisible(false);
-              else if (typeof shMid.returnOverlay.setMap === 'function') shMid.returnOverlay.setMap(null);
-            }
-            if (shMid && shMid.staffOverlay) {
-              if (typeof shMid.staffOverlay.setVisible === 'function') shMid.staffOverlay.setVisible(false);
-              else if (typeof shMid.staffOverlay.setMap === 'function') shMid.staffOverlay.setMap(null);
+            if (shMid && shMid.badgeOverlay) {
+              if (typeof shMid.badgeOverlay.setVisible === 'function') shMid.badgeOverlay.setVisible(false);
+              else if (typeof shMid.badgeOverlay.setMap === 'function') shMid.badgeOverlay.setMap(null);
             }
           } catch (e) {}
           continue;
@@ -304,27 +297,16 @@
           destroyLogoBadge(id);
         }
 
-        // Ensure return-vendor overlay visibility follows the same zoom rule as logo badges
+        // Ensure badge overlay visibility follows the same zoom rule as logo badges
         try {
           const sh2 = S.shapes && S.shapes[id];
-          if (sh2 && sh2.returnOverlay) {
+          if (sh2 && sh2.badgeOverlay) {
             if (showBadges) {
-              if (typeof sh2.returnOverlay.setVisible === 'function') sh2.returnOverlay.setVisible(true);
-              else if (typeof sh2.returnOverlay.setMap === 'function') sh2.returnOverlay.setMap(S.map);
+              sh2.badgeOverlay.setVisible(true);
             } else {
-              if (typeof sh2.returnOverlay.setVisible === 'function') sh2.returnOverlay.setVisible(false);
-              else if (typeof sh2.returnOverlay.setMap === 'function') sh2.returnOverlay.setMap(null);
+              sh2.badgeOverlay.setVisible(false);
             }
           }
-            if (sh2 && sh2.staffOverlay) {
-              if (showBadges) {
-                if (typeof sh2.staffOverlay.setVisible === 'function') sh2.staffOverlay.setVisible(true);
-                else if (typeof sh2.staffOverlay.setMap === 'function') sh2.staffOverlay.setMap(S.map);
-              } else {
-                if (typeof sh2.staffOverlay.setVisible === 'function') sh2.staffOverlay.setVisible(false);
-                else if (typeof sh2.staffOverlay.setMap === 'function') sh2.staffOverlay.setMap(null);
-              }
-            }
         } catch (e) { /* non-fatal */ }
       }
     }
@@ -397,4 +379,38 @@
   });
 // #endregion MCPP: Vendor Logo Badges (overlay logos on booth centers)
 })();
+
+// #region Badge Legend Toggle
+(() => {
+  'use strict';
+
+  // Initialize legend collapse functionality
+  function initLegendToggle() {
+    const legend = document.getElementById('badgeLegend');
+    const toggleBtn = legend ? legend.querySelector('.legend-toggle') : null;
+    
+    if (!legend || !toggleBtn) return;
+
+    // Check localStorage for saved state
+    const savedState = localStorage.getItem('badgeLegendCollapsed');
+    if (savedState === 'true') {
+      legend.classList.add('collapsed');
+    }
+
+    // Toggle on click
+    toggleBtn.addEventListener('click', () => {
+      const isCollapsed = legend.classList.toggle('collapsed');
+      // Save state to localStorage
+      localStorage.setItem('badgeLegendCollapsed', isCollapsed.toString());
+    });
+  }
+
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLegendToggle);
+  } else {
+    initLegendToggle();
+  }
+})();
+// #endregion Badge Legend Toggle
 })();

@@ -18,9 +18,11 @@
     : (flag) => flag ? 'Returning vendor' : 'First-time vendor';
   const returnVendorDisplay = els.returnVendorDisplay || null;
   const returnVendorCheckbox = els.returnVendor || null;
-  const panelReturnBadgeEl = els.panelReturnBadge || (typeof document !== 'undefined' ? document.getElementById('panelReturnBadge') : null);
   const eventStaffCheckbox = els.eventStaff || null;
-  const panelStaffBadgeEl = els.panelStaffBadge || (typeof document !== 'undefined' ? document.getElementById('panelStaffBadge') : null);
+  const panelEventStaffBadgeEl = els.panelEventStaffBadge || (typeof document !== 'undefined' ? document.getElementById('panelEventStaffBadge') : null);
+  const panelPartnerVendorBadgeEl = els.panelPartnerVendorBadge || (typeof document !== 'undefined' ? document.getElementById('panelPartnerVendorBadge') : null);
+  const panelFeaturedVendorBadgeEl = els.panelFeaturedVendorBadge || (typeof document !== 'undefined' ? document.getElementById('panelFeaturedVendorBadge') : null);
+  const panelReturnVendorBadgeEl = els.panelReturnVendorBadge || (typeof document !== 'undefined' ? document.getElementById('panelReturnVendorBadge') : null);
   const panelBadgesContainer = (typeof document !== 'undefined' ? document.getElementById('panelBadges') : null);
 
   // Small accessible toast helper. Usage: showToast('Message', ms = 2000, anchorEl = null)
@@ -103,38 +105,56 @@
         input.checked = normalized.includes(input.value);
       });
     }
+    // Update checkbox visibility based on admin mode
+    if (typeof MCPP.updateScheduledDaysCheckboxStates === 'function') {
+      MCPP.updateScheduledDaysCheckboxStates();
+    }
+  }
+
+  // Update all panel badges (shows ALL badges that apply to this booth)
+  function updateAllPanelBadges(booth) {
+    // Event Staff Badge
+    if (panelEventStaffBadgeEl) {
+      const isEventStaff = !!(booth && booth.is_event_staff);
+      panelEventStaffBadgeEl.classList.toggle('hidden', !isEventStaff);
+      panelEventStaffBadgeEl.setAttribute('aria-hidden', isEventStaff ? 'false' : 'true');
+    }
+    
+    // Partner Vendor Badge
+    if (panelPartnerVendorBadgeEl) {
+      const isPartnerVendor = !!(booth && booth.is_partner_vendor);
+      panelPartnerVendorBadgeEl.classList.toggle('hidden', !isPartnerVendor);
+      panelPartnerVendorBadgeEl.setAttribute('aria-hidden', isPartnerVendor ? 'false' : 'true');
+    }
+    
+    // Featured Vendor Badge
+    if (panelFeaturedVendorBadgeEl) {
+      const isFeaturedVendor = !!(booth && booth.is_featured_vendor);
+      panelFeaturedVendorBadgeEl.classList.toggle('hidden', !isFeaturedVendor);
+      panelFeaturedVendorBadgeEl.setAttribute('aria-hidden', isFeaturedVendor ? 'false' : 'true');
+    }
+    
+    // Returning Vendor Badge
+    if (panelReturnVendorBadgeEl) {
+      const isReturnVendor = !!(booth && booth.is_return_vendor);
+      panelReturnVendorBadgeEl.classList.toggle('hidden', !isReturnVendor);
+      panelReturnVendorBadgeEl.setAttribute('aria-hidden', isReturnVendor ? 'false' : 'true');
+    }
   }
 
   function updateReturnVendorUI(booth) {
     const flag = !!(booth && booth.is_return_vendor);
     if (returnVendorDisplay) returnVendorDisplay.textContent = formatReturnVendor(flag);
     if (returnVendorCheckbox) returnVendorCheckbox.checked = flag;
-    // Toggle the small inline badge in the edit panel (if present)
-    if (panelReturnBadgeEl) {
-      try {
-        // Use the shared .hidden utility so viewer/global readOnly toggles don't fight inline styles
-        panelReturnBadgeEl.classList.toggle('hidden', !flag);
-        panelReturnBadgeEl.setAttribute('aria-hidden', flag ? 'false' : 'true');
-        // keep title updated for screen readers
-        panelReturnBadgeEl.title = flag ? 'Returning vendor' : 'First-time vendor';
-      } catch (_) {}
-    }
+    // Update all panel badges
+    updateAllPanelBadges(booth);
   }
 
   function updateEventStaffUI(booth) {
     const flag = !!(booth && booth.is_event_staff);
     if (eventStaffCheckbox) eventStaffCheckbox.checked = flag;
-    if (panelStaffBadgeEl) {
-      try {
-        panelStaffBadgeEl.classList.toggle('hidden', !flag);
-        panelStaffBadgeEl.setAttribute('aria-hidden', flag ? 'false' : 'true');
-        panelStaffBadgeEl.title = flag ? 'Event staff' : 'Not event staff';
-      } catch (_) {}
-    }
-    // Toggle container state so the return badge shifts down when staff badge is present
-    if (panelBadgesContainer) {
-      try { panelBadgesContainer.classList.toggle('has-staff', !!flag); } catch (_) {}
-    }
+    // Update all panel badges
+    updateAllPanelBadges(booth);
   }
 
   // Helper to ensure website has a scheme
@@ -156,7 +176,10 @@
 
     const tx = document.createElement('div');
     tx.innerHTML = `<div><b class='mono'>${displayId}</b> — ${name || '<em>Unassigned</em>'}</div>`;
+    
+    // Add elements in order: swatch, text, then logo badge at the end
     el.appendChild(sw);
+    el.appendChild(tx);
 
     if (logoUrl) {
       const badgeThumb = document.createElement('div');
@@ -170,7 +193,6 @@
       el.appendChild(badgeThumb);
     }
 
-    el.appendChild(tx);
     // (previously we showed a small clickable website icon in the list row)
     // Removed per request — keep list rows cleaner.
     el.addEventListener('click', () => {
@@ -214,7 +236,8 @@
     Object.entries(S.booths)
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
       .forEach(([id, booth]) => {
-        const hay = [id, booth.biz || '', booth.vendor_name || '', booth.phone || '', booth.email || '', booth.website || '', booth.notes || '']
+        const formattedId = (MCPP.formatBoothId ? MCPP.formatBoothId(id) : id);
+        const hay = [id, formattedId, booth.biz || '', booth.vendor_name || '', booth.phone || '', booth.email || '', booth.website || '', booth.notes || '']
           .join(' ').toLowerCase();
         if (q && !hay.includes(q)) return;
         const key = (booth.category || 'standard');

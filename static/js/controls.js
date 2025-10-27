@@ -20,6 +20,8 @@
     ? MCPP.formatReturnVendor
     : (flag) => flag ? 'Returning vendor' : 'First-time vendor';
   const eventStaffCheckbox = els.eventStaff || null;
+  const partnerVendorCheckbox = els.partnerVendor || null;
+  const featuredVendorCheckbox = els.featuredVendor || null;
 
   const getScheduledDayInputs = () => scheduledDaysOptions
     ? Array.from(scheduledDaysOptions.querySelectorAll('input[name="scheduledDayOption"]'))
@@ -63,6 +65,16 @@
     if (eventStaffCheckbox) eventStaffCheckbox.checked = flag;
   };
 
+  const applyPartnerVendorUI = (booth) => {
+    const flag = !!(booth && booth.is_partner_vendor);
+    if (partnerVendorCheckbox) partnerVendorCheckbox.checked = flag;
+  };
+
+  const applyFeaturedVendorUI = (booth) => {
+    const flag = !!(booth && booth.is_featured_vendor);
+    if (featuredVendorCheckbox) featuredVendorCheckbox.checked = flag;
+  };
+
   const getNormalizeKey = () => MCPP.normalizeCategoryKey || ((k) => k);
   const updateCategoryPill = () => {
     if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
@@ -91,6 +103,47 @@
       booth.is_event_staff = flag;
       // redraw only the selected booth so we don't accidentally affect others
       if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
+      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
+      if (typeof MCPP.save === 'function') await MCPP.save(false);
+    });
+  }
+
+  if (partnerVendorCheckbox) {
+    partnerVendorCheckbox.addEventListener('change', async () => {
+      if (!S.selected) return;
+      const flag = !!partnerVendorCheckbox.checked;
+      const booth = S.booths[S.selected];
+      if (!booth) return;
+      booth.is_partner_vendor = flag;
+      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
+      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
+      if (typeof MCPP.save === 'function') await MCPP.save(false);
+    });
+  }
+
+  if (featuredVendorCheckbox) {
+    featuredVendorCheckbox.addEventListener('change', async () => {
+      if (!S.selected) return;
+      const flag = !!featuredVendorCheckbox.checked;
+      const booth = S.booths[S.selected];
+      if (!booth) return;
+      booth.is_featured_vendor = flag;
+      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
+      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
+      if (typeof MCPP.save === 'function') await MCPP.save(false);
+    });
+  }
+
+  if (returnVendorCheckbox) {
+    returnVendorCheckbox.addEventListener('change', async () => {
+      if (!S.selected) return;
+      const flag = !!returnVendorCheckbox.checked;
+      const booth = S.booths[S.selected];
+      if (!booth) return;
+      booth.is_return_vendor = flag;
+      if (returnVendorDisplay) returnVendorDisplay.textContent = formatReturnVendor(flag);
+      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
+      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
       if (typeof MCPP.save === 'function') await MCPP.save(false);
     });
   }
@@ -223,9 +276,13 @@
       booth.scheduled_days = readScheduledDaysFromUI();
       applyScheduledDaysToUI(booth);
       booth.is_return_vendor = !!(returnVendorCheckbox && returnVendorCheckbox.checked);
-  booth.is_event_staff = !!(eventStaffCheckbox && eventStaffCheckbox.checked);
+      booth.is_event_staff = !!(eventStaffCheckbox && eventStaffCheckbox.checked);
+      booth.is_partner_vendor = !!(partnerVendorCheckbox && partnerVendorCheckbox.checked);
+      booth.is_featured_vendor = !!(featuredVendorCheckbox && featuredVendorCheckbox.checked);
       applyReturnVendorUI(booth);
-  applyEventStaffUI(booth);
+      applyEventStaffUI(booth);
+      applyPartnerVendorUI(booth);
+      applyFeaturedVendorUI(booth);
       booth.width_feet = Math.max(1, parseInt(els.widthFeet.value || booth.width_feet, 10) || booth.width_feet);
       booth.length_feet = Math.max(1, parseInt(els.lengthFeet.value || booth.length_feet, 10) || booth.length_feet);
       if (els.rotationDeg) {
@@ -243,7 +300,43 @@
       updateCategoryPill();
       if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
       if (typeof MCPP.save === 'function') await MCPP.save(false);
+      
+      // Show toast notification
+      showToast('Changes saved successfully');
     });
+  }
+
+  // Toast notification function
+  function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'save-toast';
+    toast.textContent = message;
+    
+    document.body.appendChild(toast);
+    
+    // Position centered above the assign button after appending to get toast dimensions
+    if (els.assign) {
+      const rect = els.assign.getBoundingClientRect();
+      const toastRect = toast.getBoundingClientRect();
+      toast.style.position = 'fixed';
+      toast.style.left = (rect.left + rect.width / 2 - toastRect.width / 2) + 'px';
+      toast.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+    }
+    
+    // Trigger animation
+    requestAnimationFrame(() => {
+      toast.classList.add('show');
+    });
+    
+    // Remove after 2 seconds
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 300); // Wait for fade out animation
+    }, 2000);
   }
 
   if (els.rotationDeg) {
@@ -277,10 +370,14 @@
       booth.email_public = false;
       booth.scheduled_days = [];
       booth.is_return_vendor = false;
-  booth.is_event_staff = false;
+      booth.is_event_staff = false;
+      booth.is_partner_vendor = false;
+      booth.is_featured_vendor = false;
       applyScheduledDaysToUI(booth);
       applyReturnVendorUI(booth);
-  applyEventStaffUI(booth);
+      applyEventStaffUI(booth);
+      applyPartnerVendorUI(booth);
+      applyFeaturedVendorUI(booth);
       if (els.logoPreview) {
         els.logoPreview.src = LOGO_BADGE_PLACEHOLDER;
         els.logoPreview.style.display = 'block';
@@ -327,6 +424,12 @@
   }
   if (!MCPP.updateEventStaffUI) {
     MCPP.updateEventStaffUI = applyEventStaffUI;
+  }
+  if (!MCPP.updatePartnerVendorUI) {
+    MCPP.updatePartnerVendorUI = applyPartnerVendorUI;
+  }
+  if (!MCPP.updateFeaturedVendorUI) {
+    MCPP.updateFeaturedVendorUI = applyFeaturedVendorUI;
   }
 
   if (els.exportJSON) {

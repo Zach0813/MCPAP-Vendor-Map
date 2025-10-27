@@ -114,6 +114,11 @@ function latLngFromAny(pt) {
 
   function updateOverlapVisibility() {
     if (!S || !S.shapes) return;
+    
+    // Check current zoom level to determine if badges should be visible at all
+    const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
+    const showBadgesAtZoom = (zcur != null) && (zcur >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75));
+    
     Object.entries(S.shapes).forEach(([id, shape]) => {
       if (!shape) return;
       const baseLabel = shape.baseLabelVisible !== false;
@@ -126,7 +131,8 @@ function latLngFromAny(pt) {
       const badgeEntry = S.logoBadges && S.logoBadges[id];
       if (badgeEntry) badgeEntry.hiddenByOverlap = false;
       if (shape.badgeOverlay && typeof shape.badgeOverlay.setVisible === 'function') {
-        shape.badgeOverlay.setVisible(baseBadge);
+        // Only show badge if both baseBadge is true AND zoom level is appropriate
+        shape.badgeOverlay.setVisible(baseBadge && showBadgesAtZoom);
       }
     });
   }
@@ -149,13 +155,12 @@ function latLngFromAny(pt) {
     if (shape.badgeOverlay) {
       setOverlayZ(shape.badgeOverlay, polyZ + 3);
       shape.badgeHiddenByOverlap = false;
-      if (typeof shape.badgeOverlay.setVisible === 'function') shape.badgeOverlay.setVisible(true);
-    }
-    if (shape.returnOverlay) {
-      try { setOverlayZ(shape.returnOverlay, polyZ + 4); } catch (e) {}
-    }
-    if (shape.staffOverlay) {
-      try { setOverlayZ(shape.staffOverlay, polyZ + 5); } catch (e) {}
+      // Only make badge visible if zoom level is appropriate
+      const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
+      const showBadges = (zcur != null) && (zcur >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75));
+      if (typeof shape.badgeOverlay.setVisible === 'function') {
+        shape.badgeOverlay.setVisible(showBadges);
+      }
     }
     if (S.logoBadges && S.logoBadges[id]) {
       S.logoBadges[id].hiddenByOverlap = false;
@@ -181,19 +186,12 @@ function latLngFromAny(pt) {
     if (Array.isArray(shape.debugLines)) {
       shape.debugLines.forEach((line) => line && typeof line.setMap === 'function' && line.setMap(null));
     }
-    if (shape.returnOverlay) {
+    if (shape.badgeOverlay) {
       try {
-        if (typeof shape.returnOverlay.remove === 'function') shape.returnOverlay.remove();
-        else if (typeof shape.returnOverlay.setMap === 'function') shape.returnOverlay.setMap(null);
+        if (typeof shape.badgeOverlay.remove === 'function') shape.badgeOverlay.remove();
+        else if (typeof shape.badgeOverlay.setMap === 'function') shape.badgeOverlay.setMap(null);
       } catch (e) {}
-      shape.returnOverlay = null;
-    }
-    if (shape.staffOverlay) {
-      try {
-        if (typeof shape.staffOverlay.remove === 'function') shape.staffOverlay.remove();
-        else if (typeof shape.staffOverlay.setMap === 'function') shape.staffOverlay.setMap(null);
-      } catch (e) {}
-      shape.staffOverlay = null;
+      shape.badgeOverlay = null;
     }
   }
 
@@ -243,7 +241,7 @@ function latLngFromAny(pt) {
       strokeOpacity: 1,
       strokeWeight: sel ? 3 : 1,
       fillColor: st.fill,
-      fillOpacity: 0.9,
+      fillOpacity: sel ? 1.0 : 0.75,
       clickable: true,
       draggable: !!S.isAdmin,
       zIndex: 1000
@@ -274,12 +272,13 @@ function latLngFromAny(pt) {
       bounds: computeBounds(rectPath),
       debugLines: [],
       badgeOverlay: null,
+      badgeType: null,
       badgeHiddenByOverlap: false,
       badgeBaseVisible: true,
-      returnOverlay: null,
-      staffOverlay: null,
       isReturnVendor: !!booth.is_return_vendor,
       isEventStaff: !!booth.is_event_staff,
+      isPartnerVendor: !!booth.is_partner_vendor,
+      isFeaturedVendor: !!booth.is_featured_vendor,
       lastValidCenter: centerLatLng,
       lastValidPath: rectPath
     };
@@ -357,11 +356,18 @@ function latLngFromAny(pt) {
     const labelAnchor = (typeof MCPP.getVisualCenterAdjusted === 'function')
       ? MCPP.getVisualCenterAdjusted(booth)
       : centerLatLng;
-    const labelOverlay = createDomOverlay(S.map, labelEl, labelAnchor, { zIndex: 0, pane: 'floatPane' });
+    // Label uses overlayMouseTarget pane to ensure it stays below badges in floatPane
+    const labelOverlay = createDomOverlay(S.map, labelEl, labelAnchor, { zIndex: 100, pane: 'overlayMouseTarget' });
     shapeRecord.lab = labelOverlay;
     shapeRecord.labelEl = labelEl;
-    shapeRecord.labelVisible = !!showLabels;
-    shapeRecord.baseLabelVisible = !!showLabels;
+    
+    // Determine initial label visibility based on current zoom level
+    const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
+    const hideAll = zcur != null && zcur < (typeof LABEL_HIDE_ZOOM !== 'undefined' ? LABEL_HIDE_ZOOM : 19.5);
+    const initialLabelVisible = showLabels && !hideAll;
+    
+    shapeRecord.labelVisible = initialLabelVisible;
+    shapeRecord.baseLabelVisible = initialLabelVisible;
     shapeRecord.setLabelVisible = (visible) => {
       const on = !!visible;
       shapeRecord.labelVisible = on;
@@ -387,80 +393,84 @@ function latLngFromAny(pt) {
       shapeRecord.badgeBaseVisible = badgeInfo.baseVisible !== false;
     }
 
-    // --- Return vendor overlay (small SVG) ---
-    // We'll create a small DOM overlay anchored near the polygon's top-right corner.
+    // --- Badge Hierarchy System ---
+    // Determine the highest priority badge for this booth based on hierarchy:
+    // 1. Event Staff (highest priority)
+    // 2. Partner Vendor
+    // 3. Featured Vendor
+    // 4. Returning Vendor (lowest priority)
+    // Only one badge will be displayed per booth.
+    
+    shapeRecord.isEventStaff = !!booth.is_event_staff;
+    shapeRecord.isPartnerVendor = !!booth.is_partner_vendor;
+    shapeRecord.isFeaturedVendor = !!booth.is_featured_vendor;
     shapeRecord.isReturnVendor = !!booth.is_return_vendor;
-    if (shapeRecord.isReturnVendor && typeof MCPP.createDomOverlay === 'function') {
+    
+    // Determine which badge to show based on hierarchy
+    let badgeType = null;
+    let badgeId = null;
+    let badgeTitle = null;
+    let badgeColor = null;
+    
+    if (shapeRecord.isEventStaff) {
+      badgeType = 'event-staff';
+      badgeId = '#badge-event-staff';
+      badgeTitle = 'Event staff';
+      badgeColor = 'var(--danger)';
+    } else if (shapeRecord.isPartnerVendor) {
+      badgeType = 'partner-vendor';
+      badgeId = '#badge-partner-vendor';
+      badgeTitle = 'Partner vendor';
+      badgeColor = '#3498DB';
+    } else if (shapeRecord.isFeaturedVendor) {
+      badgeType = 'featured-vendor';
+      badgeId = '#badge-featured-vendor';
+      badgeTitle = 'Featured vendor';
+      badgeColor = '#FFD700';
+    } else if (shapeRecord.isReturnVendor) {
+      badgeType = 'returning-vendor';
+      badgeId = '#badge-returning-vendor';
+      badgeTitle = 'Returning vendor';
+      badgeColor = 'var(--hi)';
+    }
+    
+    // Create the badge overlay if a badge type was determined
+    if (badgeType && typeof MCPP.createDomOverlay === 'function') {
       // create the wrapped element (zero-sized wrapper like logo badges)
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
 
-  const el = document.createElement('div');
-  el.className = 'booth-return-badge';
-  // enable pointer events on the badge so hover/title works, but keep wrapper non-interactive
-  // position the element so its top-right corner will align with the overlay anchor
-  el.style.position = 'absolute';
-  el.style.left = '0';
-  el.style.top = '0';
-  // shift badge 1px left and 2px down relative to the polygon corner (net: move right 1px)
-  el.style.transform = 'translate(calc(-100% - 1px), 2px)';
-  el.style.pointerEvents = 'auto';
-  el.setAttribute('title', 'Return Vendor');
-      // inline SVG — circular arrow to indicate "returning" vendor
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', '0 0 32 32');
-  svg.setAttribute('width', '100%');
-  svg.setAttribute('height', '100%');
-  svg.setAttribute('aria-hidden', 'true');
+      const el = document.createElement('div');
+      el.className = `booth-badge booth-${badgeType}-badge`;
+      // enable pointer events on the badge so hover/title works, but keep wrapper non-interactive
+      // position the element so its top-right corner will align with the overlay anchor
+      el.style.position = 'absolute';
+      el.style.left = '0';
+      el.style.top = '0';
+      // shift badge 1px left and 2px down relative to the polygon corner (net: move right 1px)
+      el.style.transform = 'translate(calc(-100% - 1px), 2px)';
+      el.style.pointerEvents = 'auto';
+      el.setAttribute('title', badgeTitle);
+      
+      // Use shared SVG definition via <use> element
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('viewBox', '0 0 32 32');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('aria-hidden', 'true');
 
-  // ribbon/bookmark background path (simple stylized bookmark)
-  const ribbon = document.createElementNS(svgNS, 'path');
-  // ribbon: use theme accent color with higher visibility (uses CSS variable)
-  ribbon.setAttribute('style', 'fill: var(--accent); opacity:0.28;');
-  ribbon.setAttribute('d', 'M28 0H6C4.9 0 4 .9 4 2v20c0 .9.6 1.7 1.5 1.9L16 27l10.5-3.1c.9-.2 1.5-1 1.5-1.9V2c0-1.1-.9-2-2-2z');
-  // nudge the ribbon up by 1px so it extends slightly toward the top edge
-  ribbon.setAttribute('transform', 'translate(0 -1)');
-  // inner mask/shape to give a ribbon notch (subtle)
-  const ribbonInner = document.createElementNS(svgNS, 'path');
-  ribbonInner.setAttribute('style', 'fill: rgba(0,0,0,0.06);');
-  ribbonInner.setAttribute('d', 'M6 0v22l10-3 10 3V0H6z');
-  ribbonInner.setAttribute('transform', 'translate(0 -1)');
+      const title = document.createElementNS(svgNS, 'title');
+      title.textContent = badgeTitle;
+      
+      const use = document.createElementNS(svgNS, 'use');
+      use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', badgeId);
+      use.setAttribute('href', badgeId);
+      use.setAttribute('style', `color: ${badgeColor};`);
 
-  // the circular-arrow icon centered on the ribbon; we'll shrink it via a group transform
-  const iconGroup = document.createElementNS(svgNS, 'g');
-  // translate toward center, move up 2px total for visual balance, and scale down for better fit
-  // (previously moved up 1px; nudge an extra 1px as requested)
-  iconGroup.setAttribute('transform', 'translate(6 4) scale(0.6)');
-  const icon = document.createElementNS(svgNS, 'path');
-  // icon uses currentColor so it can be themed by CSS (we keep it bright)
-  // draw a stroked icon (thicker arrow) so it remains visible over the ribbon
-  icon.setAttribute('fill', 'none');
-  icon.setAttribute('stroke', 'currentColor');
-  icon.setAttribute('stroke-width', '1.6');
-  icon.setAttribute('stroke-linecap', 'round');
-  icon.setAttribute('stroke-linejoin', 'round');
-  icon.setAttribute('d', 'M16 6v-3l-4 4 4 4v-5c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9H6c0 5.52 4.48 10 10 10s10-4.48 10-10S21.52 6 16 6z');
-
-  // add a filled head first, then draw the stroked icon over it so the stroke preserves the arrow shape
-  // create a small filled triangular head to give a crisp silhouette
-  const iconHead = document.createElementNS(svgNS, 'path');
-  // triangle tip near (16,3) with base across ~ (12..20,6) — coordinates chosen to match existing icon scale
-  iconHead.setAttribute('d', 'M16 3 L20 7 L12 7 Z');
-  iconHead.setAttribute('fill', 'currentColor');
-  iconGroup.appendChild(iconHead);
-  // append the stroked icon path on top so the stroke outlines the filled head and preserves shape
-  iconGroup.appendChild(icon);
-
-  const title = document.createElementNS(svgNS, 'title');
-  title.textContent = 'Returning vendor';
-  svg.appendChild(title);
-  svg.appendChild(ribbon);
-  svg.appendChild(ribbonInner);
-  svg.appendChild(iconGroup);
-
-  // put ribbon background as part of the SVG: we'll create an outer <g> with ribbon path then inner icon path
-  el.appendChild(svg);
+      svg.appendChild(title);
+      svg.appendChild(use);
+      el.appendChild(svg);
       wrap.appendChild(el);
 
       // make the badge clickable/interactive: forward clicks to existing select behavior
@@ -476,96 +486,18 @@ function latLngFromAny(pt) {
         bringShapeToFront(id);
       });
 
-  // position initially at center; we'll reposition once we compute corners
-  // Use a higher zIndex so the badge displays above the polygon
-  const marker = MCPP.createDomOverlay(S.map, wrap, centerLatLng, { zIndex: 3000, pane: 'floatPane' });
+      // position initially at center; we'll reposition once we compute corners
+      // Status badge should be above both label (100) and logo badge (200)
+      const marker = MCPP.createDomOverlay(S.map, wrap, centerLatLng, { zIndex: 300, pane: 'floatPane' });
       if (marker) {
-        shapeRecord.returnOverlay = marker;
-    try {
-      const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
-      const showBadges = (zcur == null) ? true : (zcur >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75));
-      if (!showBadges) {
-        if (typeof marker.setVisible === 'function') marker.setVisible(false);
-        else if (typeof marker.setMap === 'function') marker.setMap(null);
-      }
-    } catch (e) {}
-      }
-    }
-
-    // --- Event staff overlay (small SVG) ---
-    shapeRecord.isEventStaff = !!booth.is_event_staff;
-    if (shapeRecord.isEventStaff && typeof MCPP.createDomOverlay === 'function') {
-      const wrapS = document.createElement('div');
-      wrapS.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
-
-      const elS = document.createElement('div');
-      elS.className = 'booth-staff-badge';
-      elS.style.position = 'absolute';
-      elS.style.left = '0';
-      elS.style.top = '0';
-      // place slightly left of the return badge so they don't overlap
-      elS.style.transform = 'translate(calc(-200% - 6px), 2px)';
-      elS.style.pointerEvents = 'auto';
-      elS.setAttribute('title', 'Event staff');
-
-      const svgNS = 'http://www.w3.org/2000/svg';
-      const svgS = document.createElementNS(svgNS, 'svg');
-      svgS.setAttribute('viewBox', '0 0 32 32');
-      svgS.setAttribute('width', '100%');
-      svgS.setAttribute('height', '100%');
-      svgS.setAttribute('aria-hidden', 'true');
-
-      const ribbonS = document.createElementNS(svgNS, 'path');
-      ribbonS.setAttribute('style', 'fill: var(--danger); opacity:0.28;');
-      ribbonS.setAttribute('d', 'M28 0H6C4.9 0 4 .9 4 2v20c0 .9.6 1.7 1.5 1.9L16 27l10.5-3.1c.9-.2 1.5-1 1.5-1.9V2c0-1.1-.9-2-2-2z');
-      ribbonS.setAttribute('transform', 'translate(0 -1)');
-      const ribbonInnerS = document.createElementNS(svgNS, 'path');
-      ribbonInnerS.setAttribute('style', 'fill: rgba(0,0,0,0.06);');
-      ribbonInnerS.setAttribute('d', 'M6 0v22l10-3 10 3V0H6z');
-      ribbonInnerS.setAttribute('transform', 'translate(0 -1)');
-
-  const iconGroupS = document.createElementNS(svgNS, 'g');
-  // Increase scale and nudge the translate so the person glyph sits nicely on the ribbon
-  // move the group slightly lower so the glyph centers over the ribbon's top area
-  // nudge up and slightly left so the glyph centers over the ribbon on the map overlay
-  iconGroupS.setAttribute('transform', 'translate(3 5) scale(0.95)');
-  // person glyph: head and shoulders/body (enlarge head for better visibility)
-  const head = document.createElementNS(svgNS, 'circle');
-  head.setAttribute('cx', '15'); head.setAttribute('cy', '5'); head.setAttribute('r', '2.8'); head.setAttribute('fill', 'currentColor');
-  const body = document.createElementNS(svgNS, 'path');
-  // shift body slightly left so it's centered under the head on the map badge
-  body.setAttribute('d', 'M11 14c0-4 8-4 8 0v2H11v-2z');
-  body.setAttribute('fill', 'currentColor');
-
-      iconGroupS.appendChild(head);
-      iconGroupS.appendChild(body);
-
-      const titleS = document.createElementNS(svgNS, 'title');
-      titleS.textContent = 'Event staff';
-      svgS.appendChild(titleS);
-      svgS.appendChild(ribbonS);
-      svgS.appendChild(ribbonInnerS);
-      svgS.appendChild(iconGroupS);
-
-      elS.appendChild(svgS);
-      wrapS.appendChild(elS);
-
-      elS.addEventListener('click', (ev) => {
-        ev.preventDefault(); ev.stopPropagation(); S._userInteracted = true;
-        if (typeof MCPP.select === 'function') MCPP.select(id);
-        if (S.map) { const target = shapeRecord.centerLL || centerLatLng; if (target) S.map.panTo(target); }
-        bringShapeToFront(id);
-      });
-
-      const markerS = MCPP.createDomOverlay(S.map, wrapS, centerLatLng, { zIndex: 3000, pane: 'floatPane' });
-      if (markerS) {
-        shapeRecord.staffOverlay = markerS;
+        shapeRecord.badgeOverlay = marker;
+        shapeRecord.badgeType = badgeType;
         try {
           const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
-          const showBadges = (zcur == null) ? true : (zcur >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75));
+          // Default to hiding badges if zoom is unavailable, rather than showing them
+          const showBadges = (zcur != null) && (zcur >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75));
           if (!showBadges) {
-            if (typeof markerS.setVisible === 'function') markerS.setVisible(false);
-            else if (typeof markerS.setMap === 'function') markerS.setMap(null);
+            marker.setVisible(false);
           }
         } catch (e) {}
       }
@@ -592,9 +524,9 @@ function latLngFromAny(pt) {
       shapeRecord.lastValidCenter = centerUse;
       shapeRecord.lastValidPath = pathUse;
       shapeRecord.bounds = computeBounds(pathUse);
-      // Reposition return vendor overlay to the polygon's visual top-right corner
+      // Reposition badge overlay to the polygon's visual top-right corner
       try {
-        if (shapeRecord.returnOverlay && Array.isArray(pathUse) && pathUse.length && S.proj && typeof S.proj.getProjection === 'function') {
+        if (shapeRecord.badgeOverlay && Array.isArray(pathUse) && pathUse.length && S.proj && typeof S.proj.getProjection === 'function') {
           const proj = S.proj.getProjection();
           if (proj) {
             let best = null;
@@ -607,22 +539,15 @@ function latLngFromAny(pt) {
                 best = { p, ll: pt };
               }
             }
-            if (best && shapeRecord.returnOverlay && typeof shapeRecord.returnOverlay.setPosition === 'function') {
+            if (best && shapeRecord.badgeOverlay && typeof shapeRecord.badgeOverlay.setPosition === 'function') {
               // move the anchor part-way toward the polygon center so the badge sits inside the polygon
               try {
                 // Align the top-right corner of the badge to the polygon corner: use the corner pixel directly
                 const anchoredLL = proj.fromDivPixelToLatLng(best.p);
-                shapeRecord.returnOverlay.setPosition(anchoredLL);
-                // position staff overlay at same anchor (its transform offsets it visually)
-                if (shapeRecord.staffOverlay && typeof shapeRecord.staffOverlay.setPosition === 'function') {
-                  try { shapeRecord.staffOverlay.setPosition(anchoredLL); } catch (_) {}
-                }
+                shapeRecord.badgeOverlay.setPosition(anchoredLL);
               } catch (e) {
                 // fallback to exact corner if projection conversion fails
-                shapeRecord.returnOverlay.setPosition(best.ll);
-                if (shapeRecord.staffOverlay && typeof shapeRecord.staffOverlay.setPosition === 'function') {
-                  try { shapeRecord.staffOverlay.setPosition(best.ll); } catch (_) {}
-                }
+                shapeRecord.badgeOverlay.setPosition(best.ll);
               }
             }
           }
