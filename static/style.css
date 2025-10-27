@@ -386,14 +386,15 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
 
   /* Badge legend drawer/tab (mobile-only) */
   /* We'll place the tab on the right edge; the drawer slides in from the right */
-  .badge-legend-drawer { position: fixed; top: 52px; right: 0; bottom: 0; width: min(88vw,320px); max-width: 320px; transform: translateX(105%); transition: transform .28s cubic-bezier(.2,.9,.2,1); z-index: 62; box-shadow: -8px 0 30px rgba(0,0,0,0.6); background: linear-gradient(180deg,var(--card),var(--card-2)); padding-bottom: 20px; }
+  /* make legend drawer sized to its content rather than full height; anchor above bottom so it sits near the legend */
+  .badge-legend-drawer { position: fixed; right: 0; bottom: 120px; width: min(88vw,320px); max-width: 320px; height: auto; max-height: 60vh; transform: translateX(105%); transition: transform .28s cubic-bezier(.2,.9,.2,1); z-index: 62; box-shadow: -8px 0 30px rgba(0,0,0,0.6); background: linear-gradient(180deg,var(--card),var(--card-2)); padding: 10px 12px; overflow-y: auto; border-radius: 8px; }
   .badge-legend-drawer.open { transform: translateX(0); }
 
   /* tab handle: vertical rotated chevron */
   /* Tab travels with the legend drawer (positioned relative to the drawer) */
   .badge-legend-drawer{ overflow: visible; }
   /* Fixed tab: visible when drawer closed; moves to drawer edge when open via the adjacent selector */
-  .badge-legend-tab { position: fixed; right: 0; width: 44px; height: 48px; display:inline-flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.78); border:1px solid rgba(255,255,255,0.12); border-right: none; border-radius:8px 0 0 8px; z-index: 70; box-shadow: 0 2px 8px rgba(0,0,0,0.18); bottom: 140px; transition: right .28s cubic-bezier(.2,.9,.2,1), transform .18s ease, background .18s ease; }
+  .badge-legend-tab { position: fixed; right: 0; width: 44px; height: 48px; display:inline-flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.78); border:1px solid rgba(255,255,255,0.12); border-right: none; border-radius:8px 0 0 8px; z-index: 70; box-shadow: 0 2px 8px rgba(0,0,0,0.18); bottom: 120px; transition: right .28s cubic-bezier(.2,.9,.2,1), transform .18s ease, background .18s ease; }
   /* When the drawer is open, move the tab to sit at the drawer edge */
   .badge-legend-drawer.open + .badge-legend-tab { right: calc(min(88vw,320px) + 0px); }
   /* Make the tab chevron point left when closed (rotate 180deg) and slightly shifted left to appear more off the edge; when open, point right and center it */
