@@ -696,6 +696,56 @@
     if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
   }
 
+  /* Drawer toggle: accessible off-canvas sidebar control for small screens */
+  (function attachDrawerToggle(){
+    try {
+      const toggle = document.getElementById('drawerToggle');
+      const drawer = document.getElementById('drawer');
+      if (!toggle || !drawer) return;
+
+      // ensure initial aria state matches class
+      const isOpen = drawer.classList.contains('open');
+      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+      // create backdrop if missing
+      let backdrop = document.querySelector('.drawer-backdrop');
+      if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.className = 'drawer-backdrop';
+        document.body.appendChild(backdrop);
+      }
+
+      function openDrawer(){
+        drawer.classList.add('open');
+        toggle.setAttribute('aria-expanded', 'true');
+        backdrop.classList.add('visible');
+        document.body.classList.add('drawer-open');
+        // give map a moment to reflow; some map libs respond to resize
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+      }
+
+      function closeDrawer(){
+        drawer.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+        backdrop.classList.remove('visible');
+        document.body.classList.remove('drawer-open');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+      }
+
+      toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (drawer.classList.contains('open')) closeDrawer(); else openDrawer();
+      });
+
+      backdrop.addEventListener('click', (e) => { e.preventDefault(); closeDrawer(); });
+
+      // close on Escape
+      window.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
+      });
+    } catch (err) { console.warn('drawer toggle init failed', err); }
+  })();
+
 Object.assign(MCPP, {
     listRow,
     refreshList,
