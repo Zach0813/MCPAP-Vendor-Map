@@ -42,6 +42,8 @@ body{margin:0;min-width:320px;overflow-x:hidden;background:var(--bg);color:var(-
 /* hide drawer close control on desktop; shown only in mobile media query */
 .drawer-close{ display: none; }
 .hamburger .icon-hamburger { width:20px; height:14px; display:block; }
+/* ensure hamburger bars use the theme color */
+.hamburger .icon-hamburger rect { fill: currentColor; }
 
 .wrap{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 52px)}
 .drawer{border-right:1px solid var(--border);background:linear-gradient(180deg,var(--card),var(--card-2));overflow:hidden}
@@ -389,9 +391,11 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.04);
-    background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+  /* remove visible border/box but keep hit target */
+  border: none;
+  background: transparent;
+  box-shadow: none;
     color: var(--ink);
     line-height: 1;
     z-index: 70;
