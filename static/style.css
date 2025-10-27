@@ -31,11 +31,14 @@ body{margin:0;min-width:320px;overflow-x:hidden;background:var(--bg);color:var(-
   border:0;
   background:transparent;
   color:var(--ink);
-  font-size:20px;
-  padding:8px 10px;
+  /* increase hit target to recommended 44px while keeping icon small */
+  width:44px;
+  height:44px;
+  padding:8px;
   border-radius:8px;
 }
 .hamburger:focus{outline:2px solid var(--accent);outline-offset:2px}
+.hamburger .icon-hamburger { width:20px; height:14px; display:block; }
 
 .wrap{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 52px)}
 .drawer{border-right:1px solid var(--border);background:linear-gradient(180deg,var(--card),var(--card-2));overflow:hidden}
@@ -374,23 +377,25 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
 @media (max-width:520px){
   .drawer-close{
     position: absolute;
-    top: 6px; /* slightly higher so it visually centers under the 52px header */
+    top: 4px; /* snug under the 52px header */
     right: 8px;
-    width: 32px;
-    height: 32px;
+    /* increase hit target to 44x44 while keeping visible icon smaller */
+    width: 44px;
+    height: 44px;
+    padding: 6px; /* adds spacing so inner svg can be smaller */
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: 8px;
     border: 1px solid rgba(255,255,255,0.04);
     background: rgba(255,255,255,0.02);
     color: var(--ink);
-    font-size: 16px;
     line-height: 1;
     z-index: 70;
     cursor: pointer;
   }
   .drawer-close:focus{ outline: 2px solid var(--accent); outline-offset: 2px }
+  .drawer-close .icon-close{ width: 16px; height: 16px; display:block; }
 }
 
 /* NEW: generic hide helper */
