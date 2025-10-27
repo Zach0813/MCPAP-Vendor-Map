@@ -393,13 +393,13 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
   /* Tab travels with the legend drawer (positioned relative to the drawer) */
   .badge-legend-drawer{ overflow: visible; }
   /* Fixed tab: visible when drawer closed; moves to drawer edge when open via the adjacent selector */
-  .badge-legend-tab { position: fixed; right: 0; width: 44px; height: 48px; display:inline-flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.78); border:1px solid rgba(255,255,255,0.12); border-right: none; border-radius:8px 0 0 8px; z-index: 70; box-shadow: 0 2px 8px rgba(0,0,0,0.18); bottom: 120px; transition: right .28s cubic-bezier(.2,.9,.2,1), transform .18s ease, background .18s ease; }
-  /* When the drawer is open, move the tab to sit at the drawer edge */
-  .badge-legend-drawer.open + .badge-legend-tab { right: calc(min(88vw,320px) + 0px); }
+  .badge-legend-tab { position: fixed; right: 0; width: 44px; height: 48px; display:inline-flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.78); border:1px solid rgba(255,255,255,0.12); border-right: none; border-radius:8px 0 0 8px; z-index: 9999; box-shadow: 0 2px 8px rgba(0,0,0,0.18); bottom: 120px; transition: right .28s cubic-bezier(.2,.9,.2,1), transform .18s ease, background .18s ease; pointer-events: auto; touch-action: manipulation; transform: translateX(-8px); }
+  /* When the drawer is open, move the tab to sit at the drawer edge and remove the protrusion */
+  .badge-legend-drawer.open + .badge-legend-tab { right: calc(min(88vw,320px) + 0px); transform: translateX(0); }
   /* Make the tab chevron point left when closed (rotate 180deg) and slightly shifted left to appear more off the edge; when open, point right and center it */
   .badge-legend-tab { color: #fff; }
   /* shift the chevron further left inside the tab while keeping the tab flush to the screen edge */
-  .badge-legend-tab .chev { width:14px; height:14px; transform: rotate(180deg); display:block; transition: transform .18s ease; color: currentColor; }
+  .badge-legend-tab .chev { width:14px; height:14px; transform: rotate(180deg); display:block; transition: transform .18s ease; color: currentColor; pointer-events: none; }
   /* keep the semi-transparent background when open as well (no opaque accent) */
   .badge-legend-tab[aria-expanded="true"] { background: rgba(0,0,0,0.78); color: #fff; }
   .badge-legend-drawer.open + .badge-legend-tab[aria-expanded="true"] .chev { transform: rotate(0deg); }
