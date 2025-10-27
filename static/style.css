@@ -38,6 +38,9 @@ body{margin:0;min-width:320px;overflow-x:hidden;background:var(--bg);color:var(-
   border-radius:8px;
 }
 .hamburger:focus{outline:2px solid var(--accent);outline-offset:2px}
+
+/* hide drawer close control on desktop; shown only in mobile media query */
+.drawer-close{ display: none; }
 .hamburger .icon-hamburger { width:20px; height:14px; display:block; }
 
 .wrap{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 52px)}
