@@ -185,6 +185,13 @@ const els = {
     return `${prefix}${padded}`;
   }
 
+  // Helper: treat narrow/mobile screens as where the drawer should start closed
+  function isNarrowViewport() {
+    try {
+      return !!(window.matchMedia && window.matchMedia('(max-width:520px)').matches);
+    } catch (_) { return false; }
+  }
+
   function roleBadge() {
     if (els.roleBadge) els.roleBadge.textContent = S.isAdmin ? 'Admin' : 'Viewer';
   }
@@ -192,13 +199,15 @@ const els = {
   function showList() {
     els.panels && els.panels.classList.add('mode-list');
     els.panels && els.panels.classList.remove('mode-edit');
-    els.drawer && els.drawer.classList.add('open');
+    // On narrow/mobile viewports we prefer the drawer to start closed; only open by default on wider screens
+    if (els.drawer && !isNarrowViewport()) els.drawer.classList.add('open');
   }
 
   function showEditor() {
     els.panels && els.panels.classList.remove('mode-list');
     els.panels && els.panels.classList.add('mode-edit');
-    els.drawer && els.drawer.classList.add('open');
+    // When editing on narrow screens we still keep drawer closed by default to avoid covering content
+    if (els.drawer && !isNarrowViewport()) els.drawer.classList.add('open');
     if (els.editPanel) {
       els.editPanel.classList.remove('hidden');
       els.editPanel.scrollTop = 0;
@@ -229,7 +238,7 @@ const els = {
     }
     els.panels && els.panels.classList.add('mode-list');
     els.panels && els.panels.classList.remove('mode-edit');
-    els.drawer && els.drawer.classList.add('open');
+  if (els.drawer && !isNarrowViewport()) els.drawer.classList.add('open');
     els.editPanel && els.editPanel.classList.add('hidden');
     els.legendPanel && els.legendPanel.classList.add('hidden');
     if (S.map) S.map.setOptions({ keyboardShortcuts: true });
