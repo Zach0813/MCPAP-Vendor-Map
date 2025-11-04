@@ -155,6 +155,15 @@
       els.logoPreview.style.display = 'block';
       if (S.selected && S.booths[S.selected]) {
         S.booths[S.selected].logo_url = url;
+        // Immediately update the logo badge on the map without needing to save or redraw
+        const booth = S.booths[S.selected];
+        const id = S.selected;
+        if (typeof MCPP.ensureLogoBadgeForBooth === 'function') {
+          MCPP.ensureLogoBadgeForBooth(booth, id);
+        } else if (window.mcppLogoBadges && typeof window.mcppLogoBadges.refresh === 'function') {
+          // Fallback to full refresh if per-booth update isn't exposed
+          window.mcppLogoBadges.refresh();
+        }
       }
     });
   }
@@ -394,12 +403,41 @@
       if (!confirm(`Delete booth ${id}?`)) return;
       const shape = S.shapes[id];
       if (shape) {
-        if (shape.poly) shape.poly.setMap(null);
-        if (shape.lab) shape.lab.map = null;
-        if (shape.centerDbg) {
-          if ('map' in shape.centerDbg) shape.centerDbg.map = null;
-          else if (typeof shape.centerDbg.setMap === 'function') shape.centerDbg.setMap(null);
+        // Remove polygon
+        if (shape.poly && typeof shape.poly.setMap === 'function') shape.poly.setMap(null);
+        // Remove label overlay (createDomOverlay returns an object with remove())
+        if (shape.lab) {
+          if (typeof shape.lab.remove === 'function') shape.lab.remove();
+          else if (typeof shape.lab.setMap === 'function') shape.lab.setMap(null);
+          else try { shape.lab.map = null; } catch (e) {}
         }
+        // Remove center debug marker
+        if (shape.centerDbg) {
+          if (typeof shape.centerDbg.remove === 'function') shape.centerDbg.remove();
+          else if (typeof shape.centerDbg.setMap === 'function') shape.centerDbg.setMap(null);
+          else try { shape.centerDbg.map = null; } catch (e) {}
+        }
+        // Remove badge overlay attached to the shape
+        if (shape.badgeOverlay) {
+          try {
+            if (typeof shape.badgeOverlay.remove === 'function') shape.badgeOverlay.remove();
+            else if (typeof shape.badgeOverlay.setMap === 'function') shape.badgeOverlay.setMap(null);
+            else try { shape.badgeOverlay.map = null; } catch (e) {}
+          } catch (e) {}
+          shape.badgeOverlay = null;
+        }
+        // Remove any logo badge created in S.logoBadges
+        try {
+          if (S.logoBadges && S.logoBadges[id]) {
+            const b = S.logoBadges[id];
+            if (b && b.marker) {
+              if (typeof b.marker.remove === 'function') b.marker.remove();
+              else if (typeof b.marker.setMap === 'function') b.marker.setMap(null);
+              else try { b.marker.map = null; } catch (e) {}
+            }
+            delete S.logoBadges[id];
+          }
+        } catch (e) {}
         delete S.shapes[id];
       }
       delete S.booths[id];
@@ -511,116 +549,33 @@
     });
   }
 
-  if (els.locate) {
-    // Store the location marker at module scope
-    let locationMarker = null;
-    
-    // Helper function to remove location marker
-    const removeLocationMarker = () => {
-      if (locationMarker) {
-        try {
-          locationMarker.setMap(null);
-          google.maps.event.clearInstanceListeners(locationMarker);
-        } catch (e) {
-          console.error('Error removing marker:', e);
-        }
-        locationMarker = null;
-      }
-    };
-    
-    // Expose globally so other parts can clear it
-    MCPP.removeLocationMarker = removeLocationMarker;
-    
-    // Initialize Google Places Autocomplete on the address input
-    const initAutocomplete = () => {
-      if (!els.addr) return;
-      if (!window.google || !google.maps || !google.maps.places || !google.maps.places.Autocomplete) {
-        console.warn('Google Places API not loaded yet');
-        return;
-      }
-      
-      const autocomplete = new google.maps.places.Autocomplete(els.addr, {
-        fields: ['geometry', 'formatted_address', 'name', 'address_components'],
-        types: ['address']
-      });
-
-      // Listen for place selection from autocomplete dropdown
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        
-        if (!place.geometry || !place.geometry.location) {
-          // User pressed Enter without selecting from dropdown
-          return;
-        }
-
-        // Update input with formatted address immediately when selected
-        const displayAddress = place.formatted_address || place.name || '';
-        els.addr.value = displayAddress;
-
-        // Remove previous location marker if it exists
-        removeLocationMarker();
-
-        // Add a standard red marker at the location
-        if (S.map) {
-          locationMarker = new google.maps.Marker({
-            position: place.geometry.location,
-            map: S.map,
-            title: displayAddress,
-            animation: google.maps.Animation.DROP,
-            zIndex: 9999,
-            clickable: true,
-            cursor: 'pointer'
-          });
-          
-          // Remove marker when clicked
-          google.maps.event.addListener(locationMarker, 'click', function() {
-            removeLocationMarker();
-          });
-        }
-
-        // Valid place selected from dropdown - navigate to it at zoom level 18
-        if (S.map) {
-          const vp = place.geometry.viewport || new google.maps.LatLngBounds(
-            place.geometry.location,
-            place.geometry.location
-          );
-          const prevMin = S.map.get('minZoom');
-          S.map.setOptions({ minZoom: 18 });
-          S.map.fitBounds(vp, { top: 40, bottom: 40, left: 20, right: 20 });
-          const once = S.map.addListener('idle', () => {
-            S.map.setOptions({ minZoom: (prevMin == null ? 2 : prevMin) });
-            S.didInitialViewport = true;
-            if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
-            google.maps.event.removeListener(once);
-          });
-        }
-      });
-      
-      console.log('Places Autocomplete initialized');
-    };
-    
-    // Initialize autocomplete for business address field
-    const initBusinessAddressAutocomplete = () => {
+  
+  // Initialize a focused legacy Autocomplete for the admin `businessAddress` input.
+  // This keeps business-address place selection working in admin mode without the
+  // full site-wide search UI.
+  // Module-scoped handle for the business address widget so we can lazily init it
+  let _businessAddressWidget = null;
+  let _businessAddressLegacy = null;
+  MCPP.initBusinessAddressAutocomplete = function initBusinessAddressAutocomplete() {
+    try {
       if (!els.businessAddress) return;
       if (!window.google || !google.maps || !google.maps.places || !google.maps.places.Autocomplete) {
         return;
       }
-      
+
       const businessAutocomplete = new google.maps.places.Autocomplete(els.businessAddress, {
         fields: ['formatted_address', 'address_components'],
         types: ['address']
       });
 
-      // Update field with formatted address in mailing format when selected
       businessAutocomplete.addListener('place_changed', () => {
         const place = businessAutocomplete.getPlace();
         if (place.address_components && place.address_components.length) {
-          // Parse address components to format as mailing address
           let street = '';
           let city = '';
           let state = '';
           let zip = '';
-          
+
           for (const component of place.address_components) {
             const types = component.types;
             if (types.includes('street_number')) {
@@ -635,15 +590,12 @@
               zip = component.long_name;
             }
           }
-          
-          // Format as two lines: "Street\nCity, State ZIP"
+
           const line1 = street.trim();
           const line2 = [city, state, zip].filter(Boolean).join(' ').replace(/\s+/g, ' ').replace(/(\w+)\s+(\w{2})\s+/, '$1, $2 ');
           const formattedAddress = [line1, line2].filter(Boolean).join('\n');
-          
+
           els.businessAddress.value = formattedAddress || place.formatted_address;
-          
-          // Trigger change to update booth data if needed
           if (S.selected && S.booths[S.selected]) {
             S.booths[S.selected].business_address = els.businessAddress.value;
           }
@@ -654,69 +606,287 @@
           }
         }
       });
-      
-      console.log('Business Address Autocomplete initialized');
-    };
 
-    // Try to initialize immediately if API is ready
-    if (window.google && google.maps && google.maps.places) {
-      initAutocomplete();
-      initBusinessAddressAutocomplete();
+  // Business address autocomplete initialized
+    } catch (err) {
+      console.warn('initBusinessAddressAutocomplete failed', err);
     }
-    
-    // Also try after a short delay to handle async loading
+  };
+
+  // Defer init slightly to allow map & libs to finish loading elsewhere
+  if (typeof MCPP.initBusinessAddressAutocomplete === 'function') {
     setTimeout(() => {
-      initAutocomplete();
-      initBusinessAddressAutocomplete();
-    }, 1000);
-    
-    // And expose it globally so map-init can call it when ready
-    MCPP.initAutocomplete = initAutocomplete;
-    MCPP.initBusinessAddressAutocomplete = initBusinessAddressAutocomplete;
-
-    els.locate.addEventListener('click', () => {
-      const q = els.addr && els.addr.value.trim();
-      if (!q) return;
-      
-      // Fall back to geocoding the address string
-      if (!S.geocoder) S.geocoder = new google.maps.Geocoder();
-      S.geocoder.geocode({ address: q }, (res, status) => {
-        if (status === 'OK' && res[0]) {
-          // Remove previous location marker if it exists
-          removeLocationMarker();
-
-          // Add a standard red marker at the location
-          locationMarker = new google.maps.Marker({
-            position: res[0].geometry.location,
-            map: S.map,
-            title: res[0].formatted_address || q,
-            animation: google.maps.Animation.DROP,
-            zIndex: 9999,
-            clickable: true,
-            cursor: 'pointer'
-          });
-          
-          // Remove marker when clicked
-          google.maps.event.addListener(locationMarker, 'click', function() {
-            removeLocationMarker();
-          });
-
-          const vp = res[0].geometry.viewport || new google.maps.LatLngBounds(res[0].geometry.location, res[0].geometry.location);
-          const prevMin = S.map.get('minZoom');
-          S.map.setOptions({ minZoom: 18 });
-          S.map.fitBounds(vp, { top: 40, bottom: 40, left: 20, right: 20 });
-          const once = S.map.addListener('idle', () => {
-            S.map.setOptions({ minZoom: (prevMin == null ? 2 : prevMin) });
-            S.didInitialViewport = true;
-            if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
-            google.maps.event.removeListener(once);
-          });
-        } else {
-          alert('Address not found');
-        }
-      });
-    });
+      try { MCPP.initBusinessAddressAutocomplete(); } catch (e) { /* ignore */ }
+    }, 500);
   }
+
+  // Lazy-init on focus/visibility: helps some Maps builds that error when constructing
+  // PlaceAutocompleteElement while the input is not yet connected/visible.
+  try {
+    const bizInput = els.businessAddress;
+    if (bizInput && bizInput.tagName === 'INPUT') {
+      const ensureInit = () => {
+        if (_businessAddressWidget) return;
+        try { MCPP.initBusinessAddressAutocomplete(); } catch (e) { /* ignore */ }
+      };
+      bizInput.addEventListener('focus', ensureInit, { passive: true });
+      // Also attempt when editPanel or drawer transitions end (input may become visible then)
+      document.addEventListener('transitionend', ensureInit);
+    }
+  } catch (e) { /* ignore */ }
+
+  // Permanent wiring: if the PlaceAutocompleteElement exposes an internal input
+  // element, automatically forward visible input events and focus so suggestions
+  // appear without requiring manual diagnostics. This keeps the newer widget but
+  // ensures it listens to our admin `#businessAddress` field.
+  try {
+    const bizInput = els.businessAddress;
+    if (bizInput && bizInput.tagName === 'INPUT') {
+      const wire = () => {
+        const w = _businessAddressWidget || window.__bizWidget;
+        if (!w) return;
+        const ie = w.inputElement || w.Dg || w.input || null;
+        if (!ie) return;
+        // Forward visible input -> widget internal input (value + events)
+        const forward = (e) => {
+          try {
+            if (!ie) return;
+            // keep internal input value in sync
+            ie.value = bizInput.value;
+            // dispatch an input event
+            ie.dispatchEvent(new Event('input', { bubbles: true }));
+          } catch (err) { /* ignore */ }
+        };
+
+        // Forward keyboard and composition events so the SDK picks up keystrokes
+        const forwardKey = (ev) => {
+          try {
+            if (!ie) return;
+            // Re-dispatch a KeyboardEvent of same type with the same key properties
+            const props = {
+              key: ev.key,
+              code: ev.code,
+              location: ev.location,
+              ctrlKey: ev.ctrlKey,
+              shiftKey: ev.shiftKey,
+              altKey: ev.altKey,
+              metaKey: ev.metaKey,
+              repeat: ev.repeat,
+              isComposing: ev.isComposing,
+              bubbles: true,
+              cancelable: true
+            };
+            const ke = new KeyboardEvent(ev.type, props);
+            ie.dispatchEvent(ke);
+          } catch (err) { /* ignore */ }
+        };
+
+        // Forward composition and paste events
+        const forwardGeneric = (ev) => {
+          try {
+            if (!ie) return;
+            ie.dispatchEvent(new Event(ev.type, { bubbles: true }));
+          } catch (err) { /* ignore */ }
+        };
+
+        // Forward focus-related behavior removed: keep native focus on the
+        // visible panel input so users can type there. We will only forward
+        // events (input/keyboard/composition/paste) to the widget's internal
+        // input without calling focus on it.
+        bizInput.addEventListener('input', forward);
+        // keyboard
+        bizInput.addEventListener('keydown', forwardKey, true);
+        bizInput.addEventListener('keypress', forwardKey, true);
+        bizInput.addEventListener('keyup', forwardKey, true);
+        // composition (IME)
+  bizInput.addEventListener('compositionstart', forwardGeneric);
+  bizInput.addEventListener('compositionend', forwardGeneric);
+        // paste
+        bizInput.addEventListener('paste', forwardGeneric);
+        // initialize internal input value
+        try { ie.value = bizInput.value || ''; } catch (e) {}
+
+        // (diagnostic poll removed)
+      };
+      // Run wiring after a short delay to allow widget creation
+      setTimeout(wire, 600);
+    }
+  } catch (e) { /* ignore */ }
+
+  // Controlled autocomplete fallback using AutocompleteService + PlacesService
+  // This is used when the native PlaceAutocompleteElement doesn't render a
+  // visible dropdown. It is conservative, accessible, and uses the same
+  // emitPlace behavior as the native widget.
+  try {
+    const input = els.businessAddress;
+    if (input && input.tagName === 'INPUT' && window.google && google.maps && google.maps.places) {
+      const svc = new google.maps.places.AutocompleteService();
+      const detailsEl = document.createElement('div');
+      const detailsSvc = new google.maps.places.PlacesService(detailsEl);
+      let dd = null;
+      let items = [];
+      let active = -1;
+      let sessionToken = null;
+      try {
+        if (google && google.maps && google.maps.places && typeof google.maps.places.AutocompleteSessionToken === 'function') {
+          sessionToken = new google.maps.places.AutocompleteSessionToken();
+        }
+      } catch (e) { sessionToken = null; }
+
+      const closeDropdown = () => {
+        if (dd && dd.parentNode) dd.parentNode.removeChild(dd);
+        dd = null; items = []; active = -1;
+      };
+
+      const positionDropdown = () => {
+        if (!dd) return;
+        const r = input.getBoundingClientRect();
+        dd.style.left = (window.scrollX + r.left) + 'px';
+        dd.style.top = (window.scrollY + r.bottom + 6) + 'px';
+        dd.style.width = Math.max(220, r.width) + 'px';
+      };
+
+      const render = (preds) => {
+        closeDropdown();
+        dd = document.createElement('div');
+        dd.className = 'mcpp-autocomplete-dropdown';
+        if (!preds || !preds.length) {
+          const no = document.createElement('div');
+          no.className = 'mcpp-autocomplete-noresults';
+          no.textContent = 'No suggestions';
+          dd.appendChild(no);
+        } else {
+          preds.forEach((p, i) => {
+            const it = document.createElement('div');
+            it.className = 'mcpp-autocomplete-item';
+            it.textContent = p.description || p.structured_formatting && p.structured_formatting.main_text || p.place_id;
+            it.tabIndex = -1;
+            it.dataset.placeid = p.place_id;
+            it.addEventListener('mousedown', (ev) => {
+              ev.preventDefault();
+              selectIndex(i);
+            });
+            dd.appendChild(it);
+          });
+        }
+        document.body.appendChild(dd);
+        positionDropdown();
+      };
+
+      const selectIndex = (idx) => {
+        if (!items || !items[idx]) return;
+        const pid = items[idx].place_id;
+        closeDropdown();
+        const req = { placeId: pid, fields: ['formatted_address','address_components'] };
+        try {
+          detailsSvc.getDetails(req, (place, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK && place) {
+              try {
+                if (place.address_components && place.address_components.length) {
+                  let street = '';
+                  let city = '';
+                  let state = '';
+                  let zip = '';
+                  for (const component of place.address_components) {
+                    const types = component.types || [];
+                    if (types.includes('street_number')) {
+                      street = component.long_name + ' ' + street;
+                    } else if (types.includes('route')) {
+                      street += component.long_name;
+                    } else if (types.includes('locality')) {
+                      city = component.long_name;
+                    } else if (types.includes('administrative_area_level_1')) {
+                      state = component.short_name;
+                    } else if (types.includes('postal_code')) {
+                      zip = component.long_name;
+                    }
+                  }
+                  const line1 = street.trim();
+                  const line2 = [city, state, zip].filter(Boolean).join(' ').replace(/\s+/g, ' ').replace(/(\w+)\s+(\w{2})\s+/, '$1, $2 ');
+                  const formatted = [line1, line2].filter(Boolean).join('\n');
+                  input.value = place.formatted_address || formatted;
+                  if (els.businessAddressViewer) els.businessAddressViewer.value = formatted || place.formatted_address || '';
+                  if (S.selected && S.booths[S.selected]) S.booths[S.selected].business_address = input.value;
+                } else if (place.formatted_address) {
+                  input.value = place.formatted_address;
+                  if (els.businessAddressViewer) els.businessAddressViewer.value = place.formatted_address;
+                  if (S.selected && S.booths[S.selected]) S.booths[S.selected].business_address = place.formatted_address;
+                }
+              } catch (e) { console.warn('apply place failed', e); }
+            } else {
+              console.warn('getDetails failed', status);
+            }
+          });
+        } catch (e) { console.warn('detailsSvc.getDetails error', e); }
+        try {
+          if (google && google.maps && google.maps.places && typeof google.maps.places.AutocompleteSessionToken === 'function') {
+            sessionToken = new google.maps.places.AutocompleteSessionToken();
+          }
+        } catch (e) { sessionToken = null; }
+      };
+
+      const onInput = (() => {
+        let to = null;
+        return (ev) => {
+          const v = input.value && input.value.trim();
+          if (to) clearTimeout(to);
+          if (!v) { closeDropdown(); return; }
+          to = setTimeout(() => {
+            try {
+              const req = { input: v, sessionToken };
+              svc.getPlacePredictions(req, (preds, status) => {
+                try {
+                  if (status === google.maps.places.PlacesServiceStatus.OK && preds && preds.length) {
+                    items = preds.slice(0, 7);
+                    render(items);
+                  } else {
+                    items = [];
+                    render([]);
+                  }
+                } catch (e) { console.warn('preds render err', e); }
+              });
+            } catch (e) { console.warn('getPlacePredictions error', e); }
+          }, 250);
+        };
+      })();
+
+      const onKey = (ev) => {
+        if (!dd) return;
+        const len = items.length;
+        if (ev.key === 'ArrowDown') { ev.preventDefault(); active = (active + 1) % len; updateActive(); }
+        else if (ev.key === 'ArrowUp') { ev.preventDefault(); active = (active - 1 + len) % len; updateActive(); }
+        else if (ev.key === 'Enter') { ev.preventDefault(); if (active >= 0) selectIndex(active); }
+        else if (ev.key === 'Escape') { closeDropdown(); }
+      };
+
+      const updateActive = () => {
+        if (!dd) return;
+        Array.from(dd.querySelectorAll('.mcpp-autocomplete-item')).forEach((el, i) => {
+          if (i === active) el.classList.add('active'); else el.classList.remove('active');
+        });
+      };
+
+      input.addEventListener('focus', () => {
+        try {
+          if (!sessionToken && google && google.maps && google.maps.places && typeof google.maps.places.AutocompleteSessionToken === 'function') {
+            sessionToken = new google.maps.places.AutocompleteSessionToken();
+          }
+        } catch (e) { sessionToken = null; }
+      }, { passive: true });
+
+      input.addEventListener('input', onInput);
+      input.addEventListener('keyup', onInput);
+      input.addEventListener('paste', onInput);
+      input.addEventListener('keydown', onKey);
+      window.addEventListener('resize', positionDropdown);
+      window.addEventListener('scroll', positionDropdown, { passive: true });
+      input.addEventListener('blur', () => { setTimeout(closeDropdown, 150); });
+    }
+  } catch (e) { /* ignore */ }
+
+  // Experimental DOM host movement removed — the widget should attach to the
+  // existing panel input; moving its host caused duplicate visible inputs and
+  // focus issues.
 
   if (els.fit) {
     els.fit.addEventListener('click', () => {

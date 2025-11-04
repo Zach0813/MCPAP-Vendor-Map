@@ -201,7 +201,7 @@
                   </label>
 
                   <label class="grow admin-only">Business Address
-                    <textarea id="businessAddress" rows="2" placeholder="123 Main St&#10;City, State ZIP"></textarea>
+                    <input id="businessAddress" type="text" placeholder="123 Main St, City, State ZIP" />
                   </label>
 
                   <div class="viewer-only" id="businessAddressViewerWrap" style="display:none;">
@@ -308,8 +308,6 @@
 
     <section class="map-wrap">
       <div class="mapbar" id="adminBar">
-        <input id="addr" placeholder="Search address… (ex: 111 Moore Lane, Billings, MT)"/>
-        <button id="locate">Locate</button>
         <button id="fit">Re-Center</button>
         <button id="toggleType">Map Labels</button>
       </div>

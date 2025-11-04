@@ -114,10 +114,7 @@
       if (typeof MCPP.showList === 'function') MCPP.showList();
       if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
       
-      // Initialize Places Autocomplete after map is ready
-      if (typeof MCPP.initAutocomplete === 'function') {
-        setTimeout(() => MCPP.initAutocomplete(), 500);
-      }
+      // Initialize business-address autocomplete (admin only)
       if (typeof MCPP.initBusinessAddressAutocomplete === 'function') {
         setTimeout(() => MCPP.initBusinessAddressAutocomplete(), 500);
       }

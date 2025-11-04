@@ -58,9 +58,9 @@
 
   const $ = (id) => document.getElementById(id);
 const els = {
-    profileBtn: $('profileBtn'), profileMenu: $('profileMenu'), loginBtn: $('loginBtn'), logoutBtn: $('logoutBtn'),
-    roleBadge: $('roleBadge'), adminBar: $('adminBar'),
-    addr: $('addr'), locate: $('locate'), fit: $('fit'), toggleType: $('toggleType'),
+  profileBtn: $('profileBtn'), profileMenu: $('profileMenu'), loginBtn: $('loginBtn'), logoutBtn: $('logoutBtn'),
+  roleBadge: $('roleBadge'), adminBar: $('adminBar'),
+  fit: $('fit'), toggleType: $('toggleType'),
     defWidth: $('defWidth'), defLength: $('defLength'), defCat: $('defCat'),
     addBooth: $('addBooth'), duplicateBooth: $('duplicateBooth'),
     exportCSV: $('exportCSV'), exportJSON: $('exportJSON'),
@@ -304,7 +304,7 @@ const els = {
       if (emailRow) emailRow.style.display = '';
     }
 
-    ['addr', 'locate', 'fit', 'toggleType'].forEach((id) => {
+    ['fit', 'toggleType'].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.style.display = '';

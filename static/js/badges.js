@@ -373,6 +373,7 @@
   };
 
   Object.assign(MCPP, {
+    ensureLogoBadgeForBooth,
     repositionLogoBadge,
     updateAllLogoBadges,
     setBadgeVisible

@@ -31,13 +31,15 @@
 .panel-head .title{font-weight:700}
 .list{display:flex;flex-direction:column;gap:6px}
 
-.list-item{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--border);background:rgba(2,108,104,.06);border-radius:10px;cursor:pointer}
+.list-item{display:flex;gap:10px;align-items:center;padding:4px 8px;min-height:42px;border:1px solid var(--border);background:rgba(2,108,104,.06);border-radius:10px;cursor:pointer}
 .list-item:hover{border-color:var(--accent)}
-.list-item > div:not(.legend-swatch):not(.badge-thumb){flex:1;min-width:0}
+.list-item > div:not(.legend-swatch):not(.badge-thumb){flex:1;min-width:0;font-size:15px}
+.list-item .mono{font-size:15px;font-weight:700}
+.list-item b:not(.mono){font-weight:400}
 .legend-swatch{width:14px;height:14px;border-radius:4px;border:2px solid var(--stroke);flex-shrink:0}
 .badge-thumb{
-  width:28px;
-  height:28px;
+  width:32px;
+  height:32px;
   border-radius:6px;
   overflow:hidden;
   border:1px solid rgba(234,246,245,.25);
@@ -50,7 +52,7 @@
 .badge-thumb img{
   width:100%;
   height:100%;
-  object-fit:cover;
+  object-fit:contain;
   pointer-events:none;
 }
 
@@ -635,19 +637,7 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
 }
 
 
-/* Make the address search field wider in the map bar */
-#adminBar #addr {
-  flex: 1.6;                 /* grows more than other elements */
-  min-width: 200px;          /* ensures comfortable width */
-  max-width: 350px;          /* avoids breaking layout on large screens */
-  padding: 6px 10px;
-  border-radius: var(--field-radius);
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--ink);
-  font-size: var(--field-font-size);
-  box-sizing: border-box;
-}
+/* The address search input was removed (legacy Locate/search UX). */
 
 /* Maintain layout consistency for the other mapbar elements */
 #adminBar {
@@ -1062,6 +1052,7 @@ input, textarea, button, select {
   color: var(--ink);
 }
 
+
 .badge-legend .legend-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -1103,8 +1094,9 @@ input, textarea, button, select {
 }
 
 .badge-legend .legend-icon {
-  width: 22px;
-  height: 22px;
+  /* Increased icon size for better readability on high-res and mobile displays */
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1126,7 +1118,16 @@ input, textarea, button, select {
 }
 
 .badge-legend .legend-item span {
-  line-height: 1.3;
+  /* Vertically center the label text to match the icon's vertical center. Use inline-flex so
+     the text aligns reliably even when the icon size changes or SVG content has internal padding. */
+  display: inline-flex;
+  align-items: center;
+  /* Match the icon height so centering is consistent */
+  height: 28px;
+  line-height: 1;
+  /* Nudge upward slightly to account for SVG internal padding and optical centering */
+  /* increased to -3px for better visual centering across badge variants */
+  transform: translateY(-4px);
 }
 
 /* Remove the admin mode hiding rule - legend is now visible in both modes */

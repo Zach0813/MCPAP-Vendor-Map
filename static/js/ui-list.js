@@ -386,7 +386,25 @@
       if (els.email) els.email.value = (S.isAdmin || booth.email_public) ? (booth.email || '') : '';
       if (els.website) els.website.value = booth.website || '';
       if (els.businessAddress) els.businessAddress.value = booth.business_address || '';
-      if (els.businessAddressViewer) els.businessAddressViewer.value = booth.business_address || '';
+      if (els.businessAddressViewer) {
+        // Ensure viewer textarea shows a multi-line mailing address
+        const raw = booth.business_address || '';
+        let viewerVal = '';
+        if (!raw) {
+          viewerVal = '';
+        } else if (raw.indexOf('\n') !== -1) {
+          viewerVal = raw;
+        } else if (raw.indexOf(',') !== -1) {
+          // Split on first comma: street on first line, rest on second line
+          const parts = raw.split(',');
+          const line1 = parts[0].trim();
+          const rest = parts.slice(1).join(',').trim();
+          viewerVal = [line1, rest].filter(Boolean).join('\n');
+        } else {
+          viewerVal = raw;
+        }
+        els.businessAddressViewer.value = viewerVal;
+      }
       if (els.phonePublic) els.phonePublic.checked = !booth.phone_public;
       if (els.emailPublic) els.emailPublic.checked = !booth.email_public;
       if (els.notes) els.notes.value = booth.notes || '';
