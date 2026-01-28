@@ -23,22 +23,25 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            // prefer explicit RELEASE_NOTES/v0.1.1.md, otherwise pick the first .md in the folder
-            let body = '';
-            try {
-              const preferred = 'RELEASE_NOTES/v0.1.1.md';
-              if (fs.existsSync(preferred)) body = fs.readFileSync(preferred, 'utf8');
-              else {
-                const files = fs.existsSync('RELEASE_NOTES') ? fs.readdirSync('RELEASE_NOTES').filter(f=>f.endsWith('.md')) : [];
-                if (files.length) body = fs.readFileSync(`RELEASE_NOTES/${files[0]}`, 'utf8');
-              }
-            } catch (e) { body = '' }
-
+            
             // Resolve tag: prefer manual input, then payload ref (strip refs/...), then github.context.ref, else fallback
             const inputTag = (context.payload && context.payload.inputs && context.payload.inputs.tag) ? context.payload.inputs.tag : null;
             const refTag = (context.payload && context.payload.ref) ? context.payload.ref : (github.context && github.context.ref ? github.context.ref : null);
             function cleanRef(r){ if (!r) return null; return r.replace(/^refs\/(tags|heads)\//,''); }
             const tag = inputTag || cleanRef(refTag) || 'v0.1.1';
+            
+            // Try to load release notes file matching the tag (e.g., v0.4.0 -> RELEASE_NOTES/v0.4.0.md)
+            let body = '';
+            try {
+              const preferred = `RELEASE_NOTES/${tag}.md`;
+              if (fs.existsSync(preferred)) {
+                body = fs.readFileSync(preferred, 'utf8');
+              } else {
+                // Fallback: pick the first .md file in RELEASE_NOTES folder
+                const files = fs.existsSync('RELEASE_NOTES') ? fs.readdirSync('RELEASE_NOTES').filter(f=>f.endsWith('.md')).sort().reverse() : [];
+                if (files.length) body = fs.readFileSync(`RELEASE_NOTES/${files[0]}`, 'utf8');
+              }
+            } catch (e) { body = '' }
 
             // Create the release
             await github.rest.repos.createRelease({
