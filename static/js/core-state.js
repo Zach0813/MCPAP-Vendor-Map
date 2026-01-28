@@ -67,7 +67,7 @@ const els = {
     drawer: $('drawer'), panels: $('panels'), listPanel: $('listPanel'), boothList: $('boothList'), listSearch: $('listSearch'),
     editPanel: $('editPanel'), legendPanel: $('legendPanel'), backToList: $('backToList'),
     boothId: $('boothId'), widthFeet: $('widthFeet'), lengthFeet: $('lengthFeet'), rotationDeg: $('rotationDeg'), category: $('category'),
-    logoUrl: $('logoUrl'), logoPreview: $('logoPreview'), biz: $('biz'), vendorName: $('vendorName'),
+    logoUrl: $('logoUrl'), logoUpload: $('logoUpload'), logoPreview: $('logoPreview'), biz: $('biz'), vendorName: $('vendorName'),
     phone: $('phone'), phonePublic: $('phonePublic'), email: $('email'), emailPublic: $('emailPublic'),
     website: $('website'), notes: $('notes'),
     businessAddress: $('businessAddress'), businessAddressViewer: $('businessAddressViewer'), 
@@ -83,7 +83,10 @@ const els = {
     featuredVendor: $('featuredVendor'),
     panelStaffBadge: $('panelStaffBadge'),
     badgeLegend: $('badgeLegend'),
-    assign: $('assign'), unassign: $('unassign'), deleteBooth: $('deleteBooth')
+    assign: $('assign'), unassign: $('unassign'), deleteBooth: $('deleteBooth'),
+    addLogoBtn: $('addLogoBtn'), removeLogoBtn: $('removeLogoBtn'), logoModal: $('logoModal'), logoModalClose: $('logoModalClose'),
+    logoModalSave: $('logoModalSave'), logoModalCancel: $('logoModalCancel'), logoModalClear: $('logoModalClear'), logoModalPreview: $('logoModalPreview'),
+    logoUploadLabel: $('logoUploadLabel'), logoUploadFake: $('logoUploadFake')
   };
 
   function initScheduledDaysOptions() {
@@ -202,6 +205,8 @@ const els = {
     if (els.editPanel) {
       els.editPanel.classList.remove('hidden');
       els.editPanel.scrollTop = 0;
+      const content = els.editPanel.querySelector('.panel-content');
+      if (content) content.scrollTop = 0;
     }
     els.legendPanel && els.legendPanel.classList.add('hidden');
   }
@@ -260,7 +265,8 @@ const els = {
     if (els.adminBar) els.adminBar.classList.remove('hidden');
     [
       els.biz, els.vendorName, els.phone, els.email, els.website, els.notes,
-      els.category, els.widthFeet, els.lengthFeet, els.rotationDeg, els.logoUrl
+      els.category, els.widthFeet, els.lengthFeet, els.rotationDeg,       els.logoUrl, els.logoUpload,
+      els.addLogoBtn, els.removeLogoBtn
     ].forEach((el) => {
       if (!el) return;
       el.disabled = readOnly;
@@ -273,6 +279,13 @@ const els = {
     document.querySelectorAll('.viewer-only').forEach((el) => {
       el.style.display = readOnly ? '' : 'none';
     });
+    
+    // Explicitly ensure business address viewer wrapper is hidden in admin mode
+    // (inline styles from select() might override the class-based hiding)
+    if (els.businessAddressViewerWrap) {
+      els.businessAddressViewerWrap.style.display = readOnly ? '' : 'none';
+    }
+    
     if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
 
     if (els.scheduledDaysFieldset) {
@@ -297,8 +310,11 @@ const els = {
     const emailRow = document.getElementById('emailRow');
     if (readOnly) {
       const booth = S.selected ? S.booths[S.selected] : null;
-      if (phoneRow) phoneRow.style.display = (booth && booth.phone_public) ? '' : 'none';
-      if (emailRow) emailRow.style.display = (booth && booth.email_public) ? '' : 'none';
+      // Only show phone/email rows if field has data AND is public
+      const showPhone = !!(booth && booth.phone && booth.phone.trim() && booth.phone_public !== false);
+      const showEmail = !!(booth && booth.email && booth.email.trim() && booth.email_public !== false);
+      if (phoneRow) phoneRow.style.display = showPhone ? '' : 'none';
+      if (emailRow) emailRow.style.display = showEmail ? '' : 'none';
     } else {
       if (phoneRow) phoneRow.style.display = '';
       if (emailRow) emailRow.style.display = '';

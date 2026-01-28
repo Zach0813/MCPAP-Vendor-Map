@@ -4,6 +4,8 @@ from flask import Flask, render_template, request, jsonify, session, send_from_d
 from dotenv import load_dotenv
 import json
 from pathlib import Path
+from werkzeug.utils import secure_filename
+import uuid
 
 load_dotenv()
 
@@ -19,6 +21,18 @@ ADMIN_PIN           = os.environ.get("ADMIN_PIN", "")
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 VENDORS_JSON = DATA_DIR / "vendors.json"
+
+# Image upload directory
+UPLOAD_DIR = Path(__file__).parent / "static" / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB
+
+# Allowed image extensions (common image formats)
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tiff', '.tif', '.ico', '.heic', '.heif'}
+
+def allowed_file(filename):
+    """Check if file has an allowed extension."""
+    return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
 
 def load_booths():
     if VENDORS_JSON.exists():
@@ -54,7 +68,7 @@ def index():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="rollback1"
+        cachebuster="v0.4.0"
     )
 
 @app.route('/favicon.ico')
@@ -137,6 +151,56 @@ def login_alias():
 @app.post("/logout")
 def logout_alias():
     return api_logout()
+
+@app.route("/api/upload-logo", methods=["POST"])
+def api_upload_logo():
+    """Upload a vendor logo image file."""
+    if not session.get("is_admin"):
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
+    
+    if 'file' not in request.files:
+        return jsonify({"ok": False, "error": "No file provided"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"ok": False, "error": "No file selected"}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({"ok": False, "error": "Invalid file type. Please upload an image file."}), 400
+    
+    # Check file size
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    
+    if file_size > MAX_UPLOAD_SIZE:
+        return jsonify({"ok": False, "error": f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024*1024)}MB"}), 400
+    
+    # Generate unique filename to avoid conflicts
+    original_ext = Path(file.filename).suffix.lower()
+    unique_filename = f"{uuid.uuid4().hex}{original_ext}"
+    filepath = UPLOAD_DIR / unique_filename
+    
+    try:
+        file.save(str(filepath))
+        # Return URL path relative to static folder
+        url = f"/static/uploads/{unique_filename}"
+        return jsonify({"ok": True, "url": url})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Upload failed: {str(e)}"}), 500
+
+@app.route("/static/uploads/<filename>")
+def serve_upload(filename):
+    """Serve uploaded images."""
+    try:
+        # Security: ensure filename is safe and exists in upload directory
+        safe_filename = secure_filename(filename)
+        filepath = UPLOAD_DIR / safe_filename
+        if filepath.exists() and filepath.parent == UPLOAD_DIR:
+            return send_from_directory(str(UPLOAD_DIR), safe_filename)
+        return jsonify({"error": "File not found"}), 404
+    except Exception:
+        return jsonify({"error": "Error serving file"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)

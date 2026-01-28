@@ -212,6 +212,22 @@ label.tiny input[type="checkbox"]{
   border-radius:8px;
   background:rgba(255,255,255,0.03);
   border:1px solid var(--border);
+  position:relative;
+}
+
+.logo-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: flex-start;
+  min-width: 120px;
+}
+
+.logo-buttons button {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px 12px;
+  white-space: nowrap;
 }
 
 /* Badges fieldset container */
@@ -1130,3 +1146,311 @@ input, textarea, button, select {
 }
 
 /* Remove the admin mode hiding rule - legend is now visible in both modes */
+
+/* ===============================
+   Modal Styles (theme-matched)
+   =============================== */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--panel-pad-x);
+}
+
+.modal.hidden {
+  display: none !important;
+}
+
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 18, 18, 0.85);
+  backdrop-filter: blur(6px);
+}
+
+.modal-content {
+  position: relative;
+  z-index: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--stroke);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--field-pad-y) var(--panel-pad-x);
+  min-height: var(--edit-header-h);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #0d1616, #0a1212);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: var(--field-font-size);
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+
+.modal-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  width: var(--field-h);
+  height: var(--field-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--field-radius);
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.modal-close svg {
+  display: block;
+}
+
+.modal-close:hover {
+  background: rgba(214, 255, 46, 0.08);
+  border-color: var(--hi);
+  color: var(--ink);
+}
+
+.modal-close:focus-visible {
+  outline: 2px solid var(--hi);
+  outline-offset: 2px;
+}
+
+.modal-body {
+  padding: var(--field-gap) var(--panel-pad-x);
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Theme-matched form fields inside modal */
+.modal-body label.grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--field-gap);
+  color: var(--label-color);
+  font-weight: var(--label-weight);
+  font-size: var(--field-font-size);
+}
+
+.modal-body input[type="url"],
+.modal-body input[type="file"] {
+  height: var(--field-h);
+  padding: var(--field-pad-y) var(--field-pad-x);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: var(--field-font-size);
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.modal-body input:focus {
+  outline: 2px solid var(--hi);
+  box-shadow: 0 0 0 2px rgba(214, 255, 46, 0.2) inset;
+}
+
+.modal-body .hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 4px;
+  display: block;
+}
+
+.modal-divider {
+  text-align: center;
+  margin: var(--field-gap) 0;
+  color: var(--muted);
+  font-size: var(--field-font-size);
+}
+
+.modal-upload-note {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.modal-upload-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: var(--field-gap);
+}
+
+.file-input-fake {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: var(--field-h);
+  padding: 0 var(--field-pad-x);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: var(--field-font-size);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.file-input-fake:hover {
+  border-color: var(--accent);
+}
+
+.file-input-fake:focus-within {
+  outline: 2px solid var(--hi);
+  box-shadow: 0 0 0 2px rgba(214, 255, 46, 0.2) inset;
+}
+
+.file-input-fake #logoUploadLabel {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.file-input-fake.has-file #logoUploadLabel {
+  color: var(--ink);
+}
+
+.file-input-fake input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.modal-preview-box {
+  padding: var(--field-pad-y) var(--field-pad-x);
+  background: var(--card-2);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+}
+
+.modal-preview-top {
+  margin-top: 0;
+  margin-bottom: var(--field-gap);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.modal-preview-label {
+  font-weight: var(--label-weight);
+  color: var(--muted);
+  font-size: var(--field-font-size);
+  margin-bottom: 8px;
+}
+
+.modal-preview-inner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 200px;
+  height: 200px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--field-radius);
+  overflow: hidden;
+}
+
+#logoModalPreview {
+  display: none;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--field-radius);
+}
+
+.modal-footer {
+  display: flex;
+  gap: var(--field-gap);
+  padding: var(--field-pad-y) var(--panel-pad-x);
+  border-top: 1px solid var(--hi);
+  background: var(--card);
+  justify-content: flex-end;
+}
+
+.modal-footer button {
+  height: var(--field-h);
+  padding: var(--field-pad-y) var(--field-pad-x);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--border);
+  font-size: var(--field-font-size);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, filter 0.18s ease;
+  min-width: 88px;
+}
+
+.modal-footer button.prim {
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  border-color: var(--accent-2);
+  color: #fff;
+}
+
+.modal-footer button.prim:hover {
+  filter: brightness(1.06);
+}
+
+.modal-footer button.ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.modal-footer button.ghost:hover {
+  filter: brightness(1.06);
+}
+
+.modal-footer button.warn {
+  background: rgba(214, 255, 46, 0.12);
+  border-color: var(--hi);
+  color: var(--ink);
+}
+
+.modal-footer button.warn:hover {
+  filter: brightness(1.06);
+}
+
+.modal-footer button:focus-visible {
+  outline: 2px solid var(--hi);
+  outline-offset: 2px;
+}
+
+#logoModalPreview[src]:not([src=""]) {
+  display: block;
+}

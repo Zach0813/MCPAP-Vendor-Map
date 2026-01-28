@@ -93,7 +93,7 @@
 
         <section id="editPanel" class="panel hidden">
           <div class="actions-top">
-            <button id="backToList" class="ghost">← Back</button>
+            <button id="backToList" type="button" class="ghost">← Back</button>
             <div class="booth-id-display">
               Booth # <span id="boothId">—</span>
             </div>
@@ -116,13 +116,14 @@
               </label>
             </div>
 
-            <label>Logo / Picture URL (optional)
-              <input id="logoUrl" type="url" placeholder="https://...">
-            </label>
-
             <div class="logo-badges-wrap">
               <div class="logo-preview-wrap">
                 <img id="logoPreview" alt="Logo preview">
+              </div>
+              
+              <div class="logo-buttons admin-only" style="display:flex;flex-direction:column;gap:8px;justify-content:flex-start;">
+                <button id="addLogoBtn" type="button" class="prim" style="white-space:nowrap;font-size:13px;padding:8px 12px;">Add Logo/Image</button>
+                <button id="removeLogoBtn" type="button" class="warn" style="white-space:nowrap;font-size:13px;padding:8px 12px;">Remove Logo</button>
               </div>
               
               <fieldset class="viewer-only badges-info-fieldset">
@@ -296,9 +297,9 @@
             <label class="admin-only">Rotation (deg)<input id="rotationDeg" type="number" step="10"></label>
           </div>
           <div class="actions-bottom">
-            <button id="assign" class="prim">Assign / Save</button>
-            <button id="unassign" class="warn">Clear Details</button>
-            <button id="deleteBooth" class="danger">Delete Booth</button>
+            <button id="assign" type="button" class="prim">Assign / Save</button>
+            <button id="unassign" type="button" class="warn">Clear Details</button>
+            <button id="deleteBooth" type="button" class="danger">Delete Booth</button>
           </div>
         </section>
 
@@ -363,6 +364,44 @@
     </section>
   </main>
 
+  <!-- Toast and modal must appear before scripts so they exist when JS runs -->
+  <div id="mcppToast" class="mcpp-toast" aria-live="polite" aria-atomic="true"></div>
+  <div id="logoModal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Add Logo/Image</h2>
+        <button id="logoModalClose" class="modal-close" type="button" aria-label="Close modal">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-preview-box modal-preview-top">
+          <div class="modal-preview-label">Preview</div>
+          <div class="modal-preview-inner">
+            <img id="logoModalPreview" alt="Logo preview">
+          </div>
+        </div>
+        <label class="grow">Upload Image <span class="modal-upload-note">(Max 100MB, any image format)</span></label>
+        <div class="modal-upload-row">
+          <label for="logoUpload" class="file-input-fake" id="logoUploadFake">
+            <span id="logoUploadLabel">Select file – no file chosen</span>
+            <input id="logoUpload" type="file" accept="image/*">
+          </label>
+        </div>
+        <div class="modal-divider">OR</div>
+        <label class="grow">Logo / Picture URL
+          <input id="logoUrl" type="url" placeholder="https://...">
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button id="logoModalClear" type="button" class="warn">Clear</button>
+        <button id="logoModalSave" type="button" class="prim">Save</button>
+        <button id="logoModalCancel" type="button" class="ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script id="bootstrap" type="application/json">
   {{ {'DEFAULTS': defaults, 'MAP_ID': map_id}|tojson }}
   </script>
@@ -394,6 +433,4 @@
   <script src="{{ url_for('static', filename='js/map-init.js') }}?v={{ cachebuster }}"></script>
   <script src="{{ url_for('static', filename='js/badges.js') }}?v={{ cachebuster }}"></script>
 </body>
-  <!-- Accessible toast for short messages (copy success etc.) -->
-  <div id="mcppToast" class="mcpp-toast" aria-live="polite" aria-atomic="true"></div>
 </html>

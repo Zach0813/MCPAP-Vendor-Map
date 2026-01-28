@@ -348,9 +348,27 @@
   function select(id) {
     try {
       const setPos = MCPP.setPos || ((target, pos) => target && typeof target.setPosition === 'function' && target.setPosition(pos));
+      // If we're switching away from a booth with unsaved admin edits, revert it first.
+      try {
+        if (MCPP.boothEdit && typeof MCPP.boothEdit.revertIfDirty === 'function') {
+          MCPP.boothEdit.revertIfDirty();
+        }
+      } catch (_) {}
+      const prevSelected = S.selected;
       S.selected = id;
       const booth = S.booths[id];
       if (!booth) return;
+
+      // Capture saved state only when opening a different booth (not when refreshing same booth after Unassign)
+      const willCapture = MCPP.boothEdit && typeof MCPP.boothEdit.capture === 'function' && prevSelected !== id;
+      if (MCPP.boothEditDebug) {
+        console.log('[boothEdit] select', { id, prevSelected, willCapture, boothBiz: (booth && booth.biz) || '', boothVendor: (booth && booth.vendor_name) || '' });
+      }
+      try {
+        if (willCapture) {
+          MCPP.boothEdit.capture(id);
+        }
+      } catch (_) {}
 
       const displayId = MCPP.formatBoothId ? MCPP.formatBoothId(id) : id;
       if (els.boothId) {
@@ -373,22 +391,34 @@
         els.category.value = key;
       }
       if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
+      // Update logo preview when selecting booth (logo URL is now in modal)
+      // Also update modal's logo URL field if modal is open
       if (els.logoUrl) els.logoUrl.value = booth.logo_url || '';
+      if (els.logoUpload) els.logoUpload.value = ''; // Clear file input when selecting booth
       if (els.logoPreview) {
         const url = (booth.logo_url || '').trim();
         els.logoPreview.src = url || LOGO_BADGE_PLACEHOLDER;
         els.logoPreview.style.display = 'block';
         els.logoPreview.setAttribute('draggable', 'false');
       }
+      // Update remove logo button state
+      if (typeof MCPP !== 'undefined' && typeof MCPP.updateRemoveLogoButton === 'function') {
+        MCPP.updateRemoveLogoButton();
+      }
       if (els.biz) els.biz.value = booth.biz || '';
       if (els.vendorName) els.vendorName.value = booth.vendor_name || '';
-      if (els.phone) els.phone.value = (S.isAdmin || booth.phone_public) ? fmtPhone : '';
-      if (els.email) els.email.value = (S.isAdmin || booth.email_public) ? (booth.email || '') : '';
+      // Only show phone/email values if field has data AND (admin OR public)
+      const hasPhone = !!(booth.phone && booth.phone.trim());
+      const hasEmail = !!(booth.email && booth.email.trim());
+      if (els.phone) els.phone.value = (hasPhone && (S.isAdmin || booth.phone_public !== false)) ? fmtPhone : '';
+      if (els.email) els.email.value = (hasEmail && (S.isAdmin || booth.email_public !== false)) ? (booth.email || '') : '';
       if (els.website) els.website.value = booth.website || '';
       if (els.businessAddress) els.businessAddress.value = booth.business_address || '';
       if (els.businessAddressViewer) els.businessAddressViewer.value = booth.business_address || '';
-      if (els.phonePublic) els.phonePublic.checked = !booth.phone_public;
-      if (els.emailPublic) els.emailPublic.checked = !booth.email_public;
+      // Check "Hidden" only if booth was saved as hidden (phone_public === false)
+      // Don't auto-check just because field is empty - that only happens on save
+      if (els.phonePublic) els.phonePublic.checked = booth.phone_public === false;
+      if (els.emailPublic) els.emailPublic.checked = booth.email_public === false;
       if (els.notes) els.notes.value = booth.notes || '';
   updateScheduledDaysUI(booth);
   updateReturnVendorUI(booth);
@@ -397,8 +427,11 @@
       const phoneRowSel = document.getElementById('phoneRow');
       const emailRowSel = document.getElementById('emailRow');
       if (!S.isAdmin) {
-        if (phoneRowSel) phoneRowSel.style.display = booth.phone_public ? '' : 'none';
-        if (emailRowSel) emailRowSel.style.display = booth.email_public ? '' : 'none';
+        // Only show phone/email rows if field has data AND is public
+        const showPhone = !!(booth.phone && booth.phone.trim() && booth.phone_public !== false);
+        const showEmail = !!(booth.email && booth.email.trim() && booth.email_public !== false);
+        if (phoneRowSel) phoneRowSel.style.display = showPhone ? '' : 'none';
+        if (emailRowSel) emailRowSel.style.display = showEmail ? '' : 'none';
       } else {
         if (phoneRowSel) phoneRowSel.style.display = '';
         if (emailRowSel) emailRowSel.style.display = '';
@@ -412,7 +445,7 @@
       try {
         const emailChain = document.getElementById('emailChain');
         if (emailChain) {
-          const showEmail = !!(booth.email && (S.isAdmin || booth.email_public));
+          const showEmail = !!(booth.email && booth.email.trim() && (S.isAdmin || booth.email_public !== false));
           emailChain.classList.toggle('hidden', !showEmail);
           emailChain.setAttribute('aria-hidden', showEmail ? 'false' : 'true');
           if (showEmail) {
@@ -480,7 +513,8 @@
       try {
         const hasAddress = !!(booth.business_address && booth.business_address.trim());
         if (els.businessAddressViewerWrap) {
-          els.businessAddressViewerWrap.style.display = hasAddress ? '' : 'none';
+          // Only show viewer wrapper in viewer mode (read-only), never in admin mode
+          els.businessAddressViewerWrap.style.display = (S.isAdmin || !hasAddress) ? 'none' : '';
         }
         if (els.businessAddressPin) {
           els.businessAddressPin.classList.toggle('hidden', !hasAddress);
@@ -622,6 +656,11 @@
       if (els.editPanel) els.editPanel.classList.remove('hidden');
       if (typeof MCPP.showEditor === 'function') MCPP.showEditor();
       if (S.map) S.map.setOptions({ keyboardShortcuts: false });
+      
+      // Update remove logo button state after selection
+      if (typeof MCPP !== 'undefined' && typeof MCPP.updateRemoveLogoButton === 'function') {
+        setTimeout(() => MCPP.updateRemoveLogoButton(), 100);
+      }
     } catch (err) {
       console.error('select() failed:', err);
       if (typeof MCPP.showEditor === 'function') MCPP.showEditor();
@@ -634,6 +673,19 @@
       if (typeof MCPP.showList === 'function') MCPP.showList();
       return;
     }
+    if (MCPP.boothEditDebug) {
+      console.log('[boothEdit] clearSelection (Back)', { selected: S.selected, snapshotId: MCPP.boothEdit && MCPP.boothEdit.snapshotId, dirty: MCPP.boothEdit && MCPP.boothEdit.dirty });
+    }
+    // If admin backs out without saving, restore last captured state first.
+    try {
+      if (MCPP.boothEdit && typeof MCPP.boothEdit.revertIfDirty === 'function') {
+        const didRevert = MCPP.boothEdit.revertIfDirty();
+        if (MCPP.boothEditDebug) console.log('[boothEdit] clearSelection revertIfDirty returned', didRevert);
+      }
+      if (MCPP.boothEdit && typeof MCPP.boothEdit.clear === 'function') {
+        MCPP.boothEdit.clear();
+      }
+    } catch (_) {}
     S.selected = null;
     if (els.boothId) {
       try {

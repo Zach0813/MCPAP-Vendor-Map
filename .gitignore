@@ -33,4 +33,5 @@ coverage/
 *.log
 *.sqlite3
 data/vendors.json
->>>>>>> 1ebe662 (Initial commit: vendor map with badges and UI tweaks)
+static/uploads/*
+!static/uploads/.gitkeep
