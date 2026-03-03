@@ -21,14 +21,22 @@
 .wrap{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 52px)}
 .drawer{border-right:1px solid var(--border);background:linear-gradient(180deg,var(--card),var(--card-2));overflow:hidden}
 .panels{height:100%;position:relative}
-.panel{position:absolute;inset:0;padding:12px 12px 16px;overflow:auto}
+.panel{position:absolute;inset:0;padding:12px 12px 16px;overflow:auto;scrollbar-color:var(--border) var(--card-2);scrollbar-width:thin}
+.panel-content{scrollbar-color:var(--border) var(--card-2);scrollbar-width:thin}
+/* Themed scrollbars for vendor list and panels (WebKit) */
+.panel::-webkit-scrollbar,.panel-content::-webkit-scrollbar{width:8px;height:8px}
+.panel::-webkit-scrollbar-track,.panel-content::-webkit-scrollbar-track{background:var(--card-2);border-radius:4px}
+.panel::-webkit-scrollbar-thumb,.panel-content::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.panel::-webkit-scrollbar-thumb:hover,.panel-content::-webkit-scrollbar-thumb:hover{background:var(--accent-2)}
+.panel::-webkit-scrollbar-corner,.panel-content::-webkit-scrollbar-corner{background:var(--card-2)}
 .panels.mode-list #listPanel{display:block}
 .panels.mode-list #editPanel{display:none}
 .panels.mode-edit #listPanel{display:none}
 .panels.mode-edit #editPanel{display:block}
 
 .panel-head{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-.panel-head .title{font-weight:700}
+.panel-head .title{font-weight:700;min-width:0}
+#addBooth{margin-left:15px;flex-shrink:0}
 .list{display:flex;flex-direction:column;gap:6px}
 
 .list-item{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--border);background:rgba(2,108,104,.06);border-radius:10px;cursor:pointer}
@@ -325,13 +333,12 @@ label.tiny input[type="checkbox"]{
 }
 
 .map-wrap{position:relative}
-#map{position:absolute;inset:42px 0 0 0}
-.mapbar{position:absolute;left:0;right:0;top:0;height:42px;display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0d1616,#0a1212)}
-.mapbar input, .mapbar select{height:30px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:var(--ink);min-width:0}
-.mapbar .tiny{font-size:12px;color:var(--muted)}
-.mapbar button{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--border);background:rgba(2,108,104,.18);color:var(--ink)}
-.mapbar button.prim{background:linear-gradient(180deg,#0aa8a0,#026c68);border-color:#026c68;color:#fff}
-.mapbar button:hover{filter:brightness(1.06)}
+#map{position:absolute;inset:0}
+.map-overlay-buttons{position:absolute;top:10px;right:16px;z-index:5;display:flex;flex-direction:column;gap:8px;align-items:stretch;width:180px;pointer-events:none}
+.map-overlay-buttons button{pointer-events:auto;width:100%;min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--border);background:rgba(12,18,18,0.92);color:var(--muted);font-size:13px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,0.4);backdrop-filter:blur(8px);display:inline-flex;align-items:center;justify-content:space-between;gap:10px}
+.map-overlay-buttons button:hover{filter:brightness(1.12);background:rgba(2,108,104,.25);color:var(--ink)}
+.map-overlay-buttons button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.map-overlay-buttons .map-overlay-btn-icon{flex-shrink:0;width:20px;height:20px}
 
 button.ghost{border:1px solid var(--border);background:transparent;color:var(--ink);border-radius:10px;padding:4px 8px}
 button.warn{background:rgba(214,255,46,.12);border:1px solid var(--hi);color:#eaf6f5}
@@ -350,9 +357,7 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
 .topbar { position: relative; z-index: 20; }        /* was no z-index */
 .menu   { z-index: 1000; }                          /* ensure dropdown is on top */
 
-/* Keep admin mapbar below topbar, above the map canvas */
-.mapbar { z-index: 5; }                             /* was missing */
-#map    { z-index: 1; }                             /* optional but clarifying */
+#map { z-index: 1; }
 
 
 .mcpp-label-center {
@@ -651,25 +656,8 @@ button.danger{background:rgba(255,54,54,.14);border:1px solid #ff5454;color:#ffd
 }
 
 
-/* Make the address search field wider in the map bar */
-#adminBar #addr {
-  flex: 1.6;                 /* grows more than other elements */
-  min-width: 200px;          /* ensures comfortable width */
-  max-width: 350px;          /* avoids breaking layout on large screens */
-  padding: 6px 10px;
-  border-radius: var(--field-radius);
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--ink);
-  font-size: var(--field-font-size);
-  box-sizing: border-box;
-}
-
-/* Maintain layout consistency for the other mapbar elements */
-#adminBar {
+#adminBar.map-overlay-buttons {
   display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 /* Vendor/Booth list actions row */
@@ -842,6 +830,34 @@ button.danger:focus-visible {
   filter: brightness(1.2);
 }
 
+#editPanel .actions-top .booth-lock-btn {
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#editPanel .actions-top .booth-lock-btn .lock-icon {
+  display: block;
+}
+
+/* Booth locked: show edit UI but dimmed and disabled (lock button stays active); content stays scrollable */
+#editPanel.booth-locked .panel-content {
+  opacity: 0.65;
+}
+#editPanel.booth-locked .actions-bottom {
+  opacity: 0.65;
+  pointer-events: none;
+}
+#editPanel.booth-locked .actions-bottom button {
+  cursor: not-allowed;
+}
+#editPanel.booth-locked .panel-content input:disabled,
+#editPanel.booth-locked .panel-content select:disabled,
+#editPanel.booth-locked .panel-content textarea:disabled,
+#editPanel.booth-locked .panel-content button:disabled {
+  cursor: not-allowed;
+}
+
 /* Remove duplicate .actions-top and header padding shims */
  
 /* === FINAL OVERRIDES: Selected Booth layout & scrolling ==================== */
@@ -900,6 +916,9 @@ button.danger:focus-visible {
   padding-left: var(--panel-pad-x) !important;
   padding-right: var(--panel-pad-x) !important;
 }
+#listPanel .panel-head{
+  padding-right: 6px !important;
+}
 /* === Tighten gap beneath sticky header in Selected Booth panel === */
 #editPanel .actions-top{ margin-bottom: 0 !important; padding-bottom: 4px; }
 #editPanel .panel-content{ padding-top: var(--field-gap) !important; }
@@ -920,15 +939,97 @@ button.danger:focus-visible {
   margin-top: 0 !important;
 }
 
+/* Rotation slider: thin track, thumb centered on line, number-line style ticks at each step */
+.rotation-slider-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rotation-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rotation-slider-end {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: var(--label-weight);
+  flex-shrink: 0;
+  min-width: 1.8em;
+}
+.rotation-slider-wrap .rotation-slider-end:last-child {
+  text-align: right;
+}
+#rotationDeg {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  /* Thin horizontal line with vertical ticks at 0%, 25%, 50%, 75%, 100% (number-line style) */
+  background-image:
+    linear-gradient(to right, var(--border) 0, var(--border) 100%),
+    linear-gradient(to bottom, var(--muted) 0, var(--muted) 8px, transparent 8px),
+    linear-gradient(to bottom, var(--muted) 0, var(--muted) 8px, transparent 8px),
+    linear-gradient(to bottom, var(--muted) 0, var(--muted) 8px, transparent 8px),
+    linear-gradient(to bottom, var(--muted) 0, var(--muted) 8px, transparent 8px),
+    linear-gradient(to bottom, var(--muted) 0, var(--muted) 8px, transparent 8px);
+  background-size: 100% 2px, 2px 8px, 2px 8px, 2px 8px, 2px 8px, 2px 8px;
+  background-position: 0 11px, 0 11px, calc(25% - 1px) 11px, calc(50% - 1px) 11px, calc(75% - 1px) 11px, calc(100% - 2px) 11px;
+  background-repeat: no-repeat;
+}
+#rotationDeg::-webkit-slider-runnable-track {
+  height: 24px;
+  background: transparent;
+}
+#rotationDeg::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--accent-2);
+  cursor: pointer;
+  margin-top: 4px; /* center 16px thumb on 24px track: (24-16)/2 = 4; track line at 11px aligns with thumb center */
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+#rotationDeg::-moz-range-track {
+  height: 24px;
+  background: transparent;
+}
+#rotationDeg::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--accent-2);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+#rotationDeg:focus {
+  outline: none;
+}
+#rotationDeg:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+#rotationDeg:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
 /* Booth return badge (bookmark/ribbon overlay) */
 .booth-logo-badge{
   display: block;
-  border-radius: 10px;
+  border-radius: 22%;
   background: rgba(6, 12, 12, 0.75);
   border: 1px solid var(--border);
   box-shadow: 0 6px 16px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.2) inset;
   backdrop-filter: saturate(110%) blur(1px);
   overflow: hidden;
+  transition: width 0.2s ease-out, height 0.2s ease-out;
 }
 .booth-logo-badge img{
   display:block;
@@ -936,25 +1037,91 @@ button.danger:focus-visible {
   object-fit: contain;
 }
 
-/* Universal booth badge styling - used for all badge types on map polygons */
-.booth-badge{
+/* Universal booth badge styling - same size and pointed ribbon for all badge types */
+.booth-badge,
+.booth-category-badge{
   position:absolute;
   left:0;
   top:0;
-  transform:translate(calc(-100% - 1px), 2px);
-  transform-origin:100% 0%;
   width:22px;
   height:22px;
   display:block;
   pointer-events:auto;
-  background:transparent; /* SVG ribbon draws background */
-  border:none; /* no outer border so ribbon shows clearly */
+  background:transparent;
+  border:none;
   border-radius:4px;
   box-shadow:none;
   overflow:visible;
 }
+/* Status badges: top-right of booth, anchor at right edge */
+.booth-badge{
+  transform:translate(calc(-100% - 1px), 2px);
+  transform-origin:100% 0%;
+}
 .booth-badge svg{ display:block; width:100%; height:100%; }
 .booth-badge:hover{ transform:translate(calc(-100% - 1px), 2px) scale(1.08); }
+
+/* Category badge: top-left of badge at path[3]; higher specificity so it wins over .booth-badge.booth-badge-rot-* */
+.booth-category-badge{
+  transform:translate(0, 0);
+  transform-origin:0 0;
+}
+.booth-category-badge.booth-badge.booth-badge-rot-0{ transform:translate(0, 0); transform-origin:0 0; }
+.booth-category-badge.booth-badge.booth-badge-rot-22-5{ transform:translate(0, 0) rotate(22.5deg); transform-origin:0 0; }
+.booth-category-badge.booth-badge.booth-badge-rot-45{ transform:translate(0, 0) rotate(45deg); transform-origin:0 0; }
+.booth-category-badge.booth-badge.booth-badge-rot-minus-22-5{ transform:translate(0, 0) rotate(-22.5deg); transform-origin:0 0; }
+.booth-category-badge-anchor-right{ transform:translate(-100%, 0); transform-origin:100% 0; }
+.booth-category-badge-anchor-right.booth-badge.booth-badge-rot-0{ transform:translate(-100%, 0); transform-origin:100% 0; }
+.booth-category-badge-anchor-right.booth-badge.booth-badge-rot-22-5{ transform:translate(-100%, 0) rotate(22.5deg); transform-origin:100% 0; }
+.booth-category-badge-anchor-right.booth-badge.booth-badge-rot-minus-22-5{ transform:translate(-100%, 0) rotate(-22.5deg); transform-origin:100% 0; }
+.booth-category-badge svg{
+  display:block;
+  width:100%;
+  height:100%;
+  position:absolute;
+  left:0;
+  top:0;
+}
+.booth-category-badge .booth-category-emoji{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, calc(-50% - 4px));
+  font-size:12px;
+  line-height:1;
+  pointer-events:none;
+}
+.booth-category-badge:hover{ transform:translate(0, 0) scale(1.08); }
+.booth-category-badge.booth-badge.booth-badge-rot-0:hover{ transform:translate(0, 0) scale(1.08); }
+.booth-category-badge.booth-badge.booth-badge-rot-22-5:hover{ transform:translate(0, 0) rotate(22.5deg) scale(1.08); }
+.booth-category-badge.booth-badge.booth-badge-rot-45:hover{ transform:translate(0, 0) rotate(45deg) scale(1.08); }
+.booth-category-badge.booth-badge.booth-badge-rot-minus-22-5:hover{ transform:translate(0, 0) rotate(-22.5deg) scale(1.08); }
+.booth-category-badge-anchor-right:hover{ transform:translate(-100%, 0) scale(1.08); }
+.booth-category-badge.booth-badge-anchor-right.booth-badge-rot-0:hover{ transform:translate(-100%, 0) scale(1.08); }
+.booth-category-badge.booth-badge-anchor-right.booth-badge-rot-22-5:hover{ transform:translate(-100%, 0) rotate(22.5deg) scale(1.08); }
+.booth-category-badge.booth-badge-anchor-right.booth-badge-rot-minus-22-5:hover{ transform:translate(-100%, 0) rotate(-22.5deg) scale(1.08); }
+
+/* Status (earned) badge: top-right of badge at path[2]; rotation 0/22.5/45/-22.5 (67.5→-22.5, 90→0) */
+.booth-badge.booth-badge-rot-0{
+  transform:translate(calc(-100% - 1px), 2px);
+  transform-origin:100% 0;
+}
+.booth-badge.booth-badge-rot-22-5{
+  transform:translate(calc(-100% - 1px), 2px) rotate(22.5deg);
+  transform-origin:100% 0;
+}
+.booth-badge.booth-badge-rot-45{
+  transform:translate(calc(-100% - 1px), 2px) rotate(45deg);
+  transform-origin:100% 0;
+}
+.booth-badge.booth-badge-rot-minus-22-5{
+  transform:translate(calc(-100% - 1px), 2px) rotate(-22.5deg);
+  transform-origin:100% 0;
+}
+.booth-badge.booth-badge-rot-0:hover{ transform:translate(calc(-100% - 1px), 2px) scale(1.08); }
+.booth-badge.booth-badge-rot-22-5:hover{ transform:translate(calc(-100% - 1px), 2px) rotate(22.5deg) scale(1.08); }
+.booth-badge.booth-badge-rot-45:hover{ transform:translate(calc(-100% - 1px), 2px) rotate(45deg) scale(1.08); }
+.booth-badge.booth-badge-rot-minus-22-5:hover{ transform:translate(calc(-100% - 1px), 2px) rotate(-22.5deg) scale(1.08); }
 
 /* Legacy class names for backwards compatibility */
 .booth-return-badge{
@@ -1015,10 +1182,10 @@ input, textarea, button, select {
   font-weight: 700;
 }
 
-/* Badge Legend - bottom of map, collapsible in both admin and viewer mode */
+/* Badge Legend - top right below overlay buttons, expands downward */
 .badge-legend {
   position: absolute;
-  bottom: 16px;
+  top: 108px;
   right: 16px;
   background: rgba(12, 18, 18, 0.92);
   border: 1px solid var(--border);
@@ -1028,7 +1195,7 @@ input, textarea, button, select {
   backdrop-filter: blur(8px);
   z-index: 10;
   width: 180px;
-  transition: padding 0.25s ease;
+  transition: padding 0.3s ease;
 }
 
 .badge-legend.collapsed {
@@ -1042,6 +1209,9 @@ input, textarea, button, select {
   gap: 12px;
   margin-bottom: 10px;
   min-height: 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: margin-bottom 0.3s ease;
 }
 
 .badge-legend.collapsed .legend-header {
@@ -1088,11 +1258,11 @@ input, textarea, button, select {
 }
 
 .badge-legend .legend-toggle svg {
-  transition: transform 0.25s ease;
+  transition: transform 0.3s ease;
 }
 
-.badge-legend.collapsed .legend-toggle svg {
-  transform: rotate(-90deg);
+.badge-legend:not(.collapsed) .legend-toggle svg {
+  transform: rotate(180deg);
 }
 
 .badge-legend .legend-items {
@@ -1100,14 +1270,15 @@ input, textarea, button, select {
   flex-direction: column;
   gap: 10px;
   overflow: hidden;
-  transition: margin-top 0.25s ease, opacity 0.25s ease;
+  max-height: 320px;
+  transition: max-height 0.35s ease, opacity 0.3s ease, margin-top 0.3s ease;
 }
 
 .badge-legend.collapsed .legend-items {
+  max-height: 0;
   opacity: 0;
   margin-top: -10px;
   pointer-events: none;
-  height: 0;
 }
 
 .badge-legend .legend-item {
@@ -1143,6 +1314,32 @@ input, textarea, button, select {
 
 .badge-legend .legend-item span {
   line-height: 1.3;
+}
+
+.badge-legend .legend-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+
+.badge-legend .legend-section-label:first-child {
+  margin-top: 0;
+}
+
+.badge-legend .legend-category-icon {
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.badge-legend .legend-category-icon svg {
+  display: none;
 }
 
 /* Remove the admin mode hiding rule - legend is now visible in both modes */

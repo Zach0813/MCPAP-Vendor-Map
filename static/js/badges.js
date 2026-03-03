@@ -10,6 +10,8 @@
     const MCPP = window.MCPP = window.MCPP || {};
 
     const badgesEnabled = () => (typeof SHOW_LOGO_BADGES === 'undefined') ? true : !!SHOW_LOGO_BADGES;
+    const getMinZoom = () => (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined') ? LOGO_BADGE_MIN_ZOOM : 20.75;
+    const getRibbonBadgeMinZoom = () => (typeof BADGE_RIBBON_MIN_ZOOM !== 'undefined') ? BADGE_RIBBON_MIN_ZOOM : 20.75;
 
     const setMarkerPosition = (target, pos) => {
       if (!target || !pos) return;
@@ -31,6 +33,20 @@
     el.style.top  = '50%';
     el.style.transform = 'translate(-50%, -50%)';
     el.style.transformOrigin = 'center center';
+  }
+  // Logo rotation: match booth angle except 67.5→-22.5, 90→0 (same as category/status badges)
+  function getLogoBadgeRotationDeg(booth) {
+    const preset = (typeof window.snapRotationToPreset === 'function')
+      ? window.snapRotationToPreset(Number(booth && booth.rotation_deg) || 0)
+      : 0;
+    if (preset === 67.5) return -22.5;
+    if (preset === 90) return 0;
+    return preset;
+  }
+  function __applyLogoBadgeRotation(el, booth) {
+    if (!el || !booth) return;
+    const deg = getLogoBadgeRotationDeg(booth);
+    el.style.transform = 'translate(-50%, -50%) rotate(' + deg + 'deg)';
   }
   function __applyBadgeImgStyles(img){
     if (!img) return;
@@ -73,8 +89,9 @@
     return getVisualCenterAdjusted(b);
   }
 
+  // Logo scales with zoom like polygon size (2x per zoom level) so it stays in proportion
   function logoBadgeSizePxForZoom(z) {
-    const factor = Math.pow(2, (z - 20) / 2); // gentle growth around 20
+    const factor = Math.pow(2, z - 21);
     const px = LOGO_BADGE_BASE_PX * factor;
     return Math.max(LOGO_BADGE_MIN_PX, Math.min(LOGO_BADGE_MAX_PX, px));
   }
@@ -82,7 +99,7 @@
 
   function ensureLogoBadgeForBooth(b, id) {
     if (!badgesEnabled() || !S.map) return;
-    if (typeof MCPP.createDomOverlay !== 'function') {
+    if (!MCPP.createDomOverlay) {
       // DOM overlay helper missing; skip gracefully
       destroyLogoBadge(id);
       return;
@@ -95,25 +112,26 @@
     if (!S.logoBadges) S.logoBadges = {};
 
     const zoom = S.map.getZoom();
-    const shouldShow = (zoom >= LOGO_BADGE_MIN_ZOOM);
+    const shouldShow = (zoom >= getMinZoom());
     const existing = S.logoBadges[id];
     if (existing) {
       if (!shouldShow) { setBadgeVisible(id, false); return; }
       const size = logoBadgeSizePxForZoom(zoom);
       __applyBadgeStyles(existing.el, size);
+      __applyLogoBadgeRotation(existing.el, b);
       __applyBadgeImgStyles(existing.img);
       setMarkerPosition(existing.marker, badgeAnchorForBooth(b));
       const src = b.logo_url.trim();
       if (existing.img.src !== src) existing.img.src = src;
-      const sh = S.shapes && S.shapes[id];
-      if (sh) {
-        if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(false);
-        else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(false);
-        else if (sh.labelEl) sh.labelEl.style.display = 'none';
-        sh.logoBadgeOverlay = existing.marker;
-        sh.badgeHiddenByOverlap = existing.hiddenByOverlap === true;
-        sh.badgeBaseVisible = existing.baseVisible !== false;
-      }
+    const sh = S.shapes && S.shapes[id];
+    if (sh) {
+      if (sh.setBaseLabelVisible) sh.setBaseLabelVisible(false);
+      else if (sh.setLabelVisible) sh.setLabelVisible(false);
+      else if (sh.labelEl) sh.labelEl.style.display = 'none';
+      sh.logoBadgeOverlay = existing.marker;
+      sh.badgeHiddenByOverlap = existing.hiddenByOverlap === true;
+      sh.badgeBaseVisible = existing.baseVisible !== false;
+    }
       existing.baseVisible = true;
       if (existing.wrap) existing.wrap.style.display = existing.hiddenByOverlap ? 'none' : '';
       if (existing.el) existing.el.style.display = existing.hiddenByOverlap ? 'none' : 'block';
@@ -131,6 +149,7 @@
     const el = document.createElement('div');
     el.className = 'booth-logo-badge';
     __applyBadgeStyles(el, size);
+    __applyLogoBadgeRotation(el, b);
     el.style.pointerEvents = 'none';
 
     const img = document.createElement('img');
@@ -152,8 +171,8 @@
     S.logoBadges[id] = { marker, wrap, el, img, hiddenByOverlap: false, baseVisible: true };
     const sh = S.shapes && S.shapes[id];
     if (sh) {
-      if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(false);
-      else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(false);
+      if (sh.setBaseLabelVisible) sh.setBaseLabelVisible(false);
+      else if (sh.setLabelVisible) sh.setLabelVisible(false);
       else if (sh.labelEl) sh.labelEl.style.display = 'none';
       sh.logoBadgeOverlay = marker;
       sh.badgeHiddenByOverlap = false;
@@ -166,15 +185,15 @@
     const badge = S.logoBadges[id];
     if (!badge) return;
     if (badge.marker) {
-      if (typeof badge.marker.remove === 'function') badge.marker.remove();
-      else if (typeof badge.marker.setMap === 'function') badge.marker.setMap(null);
+      if (badge.marker.remove) badge.marker.remove();
+      else if (badge.marker.setMap) badge.marker.setMap(null);
       else try { badge.marker.map = null; } catch (e) {}
     }
     delete S.logoBadges[id];
     const sh = S.shapes && S.shapes[id];
     if (sh) {
-      if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(true);
-      else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(true);
+      if (sh.setBaseLabelVisible) sh.setBaseLabelVisible(true);
+      else if (sh.setLabelVisible) sh.setLabelVisible(true);
       else if (sh.labelEl) sh.labelEl.style.display = '';
       sh.logoBadgeOverlay = null;
       sh.badgeHiddenByOverlap = false;
@@ -190,8 +209,8 @@
     badge.hiddenByOverlap = !show;
     badge.baseVisible = show;
     if (badge.marker) {
-      if (typeof badge.marker.setVisible === 'function') badge.marker.setVisible(show);
-      else if (typeof badge.marker.setMap === 'function') badge.marker.setMap(show ? S.map : null);
+      if (badge.marker.setVisible) badge.marker.setVisible(show);
+      else if (badge.marker.setMap) badge.marker.setMap(show ? S.map : null);
       else try { badge.marker.map = show ? S.map : null; } catch (_) {}
     }
     if (badge.wrap) badge.wrap.style.display = show ? '' : 'none';
@@ -207,7 +226,7 @@
   function updateAllLogoBadges() {
     if (!badgesEnabled() || !S.map) return;
     // Early exit if Advanced Markers aren't available: clean up and bail
-    if (typeof MCPP.createDomOverlay !== 'function') {
+    if (!MCPP.createDomOverlay) {
       if (S.logoBadges) {
         Object.keys(S.logoBadges).forEach(destroyLogoBadge);
       }
@@ -217,8 +236,9 @@
 
     const z = S.map.getZoom();
     const hideAll    = z < (typeof LABEL_HIDE_ZOOM !== 'undefined' ? LABEL_HIDE_ZOOM : 19.5);   // < 19.5: no labels, no badges
-    const showBadges = z >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75); // >= 20.75
-    const midBand    = !hideAll && !showBadges;  // 19.5 <= z < 20.75: labels only
+    const showBadges = z >= getMinZoom();       // logos (pictures) at 19.7+
+    const showRibbonBadges = z >= getRibbonBadgeMinZoom();  // category/status ribbons at 20.7+
+    const midBand    = !hideAll && !showBadges;  // 19.5 <= z < 19.7: labels only
 
     if (S.booths) {
       for (const id in S.booths) {
@@ -230,17 +250,22 @@
           // No labels, no badges
           const sh = S.shapes && S.shapes[id];
           if (sh) {
-            if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(false);
-            else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(false);
+            if (sh.setBaseLabelVisible) sh.setBaseLabelVisible(false);
+            else if (sh.setLabelVisible) sh.setLabelVisible(false);
             else if (sh.labelEl) sh.labelEl.style.display = 'none';
           }
           destroyLogoBadge(id);
           // also hide any badge overlay when badges/labels are globally hidden
           try {
             const shHide = S.shapes && S.shapes[id];
-            if (shHide && shHide.badgeOverlay) {
-              if (typeof shHide.badgeOverlay.setVisible === 'function') shHide.badgeOverlay.setVisible(false);
-              else if (typeof shHide.badgeOverlay.setMap === 'function') shHide.badgeOverlay.setMap(null);
+            if (shHide) {
+              if (shHide.badgeOverlay) {
+                if (shHide.badgeOverlay.setVisible) shHide.badgeOverlay.setVisible(false);
+                else if (shHide.badgeOverlay.setMap) shHide.badgeOverlay.setMap(null);
+              }
+              if (shHide.categoryOverlay && shHide.categoryOverlay.setVisible) {
+                shHide.categoryOverlay.setVisible(false);
+              }
             }
           } catch (e) {}
           continue;
@@ -250,17 +275,22 @@
           // Labels only
           const sh = S.shapes && S.shapes[id];
           if (sh) {
-            if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(true);
-            else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(true);
+            if (sh.setBaseLabelVisible) sh.setBaseLabelVisible(true);
+            else if (sh.setLabelVisible) sh.setLabelVisible(true);
             else if (sh.labelEl) sh.labelEl.style.display = '';
           }
           destroyLogoBadge(id);
           // hide badge overlay in midBand (labels-only)
           try {
             const shMid = S.shapes && S.shapes[id];
-            if (shMid && shMid.badgeOverlay) {
-              if (typeof shMid.badgeOverlay.setVisible === 'function') shMid.badgeOverlay.setVisible(false);
-              else if (typeof shMid.badgeOverlay.setMap === 'function') shMid.badgeOverlay.setMap(null);
+            if (shMid) {
+              if (shMid.badgeOverlay) {
+                if (shMid.badgeOverlay.setVisible) shMid.badgeOverlay.setVisible(false);
+                else if (shMid.badgeOverlay.setMap) shMid.badgeOverlay.setMap(null);
+              }
+              if (shMid.categoryOverlay && shMid.categoryOverlay.setVisible) {
+                shMid.categoryOverlay.setVisible(false);
+              }
             }
           } catch (e) {}
           continue;
@@ -275,6 +305,7 @@
             const showBadge = !badge.hiddenByOverlap;
             const size = logoBadgeSizePxForZoom(z);
             __applyBadgeStyles(badge.el, size);
+            __applyLogoBadgeRotation(badge.el, b);
             __applyBadgeImgStyles(badge.img);
             setMarkerPosition(badge.marker, badgeAnchorForBooth(b));
             if (badge.wrap) badge.wrap.style.display = showBadge ? '' : 'none';
@@ -282,36 +313,37 @@
           }
           const sh = S.shapes && S.shapes[id];
           if (sh) {
-            if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(false);
-            else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(false);
+            if (sh.setBaseLabelVisible) sh.setBaseLabelVisible(false);
+            else if (sh.setLabelVisible) sh.setLabelVisible(false);
             else if (sh.labelEl) sh.labelEl.style.display = 'none';
           }
-  } else {
+        } else {
           // No logo: label ON, no badge
           const sh = S.shapes && S.shapes[id];
           if (sh) {
-            if (typeof sh.setBaseLabelVisible === 'function') sh.setBaseLabelVisible(true);
-            else if (typeof sh.setLabelVisible === 'function') sh.setLabelVisible(true);
+            if (sh.setBaseLabelVisible) sh.setBaseLabelVisible(true);
+            else if (sh.setLabelVisible) sh.setLabelVisible(true);
             else if (sh.labelEl) sh.labelEl.style.display = '';
           }
           destroyLogoBadge(id);
         }
 
-        // Ensure badge overlay visibility follows the same zoom rule as logo badges
+        // Ribbon badges (category/status) only at higher zoom; logos use showBadges above
         try {
           const sh2 = S.shapes && S.shapes[id];
-          if (sh2 && sh2.badgeOverlay) {
-            if (showBadges) {
-              sh2.badgeOverlay.setVisible(true);
-            } else {
-              sh2.badgeOverlay.setVisible(false);
+          if (sh2) {
+            if (sh2.badgeOverlay && sh2.badgeOverlay.setVisible) {
+              sh2.badgeOverlay.setVisible(showRibbonBadges);
+            }
+            if (sh2.categoryOverlay && sh2.categoryOverlay.setVisible) {
+              sh2.categoryOverlay.setVisible(showRibbonBadges);
             }
           }
         } catch (e) { /* non-fatal */ }
       }
     }
 
-    if (S._userInteracted && typeof MCPP.updateOverlapVisibility === 'function') {
+    if (S._userInteracted && MCPP.updateOverlapVisibility) {
       try { MCPP.updateOverlapVisibility(); } catch (_) {}
     }
 
@@ -384,12 +416,12 @@
 (() => {
   'use strict';
 
-  // Initialize legend collapse functionality
+  // Initialize legend collapse functionality (whole title bar is clickable)
   function initLegendToggle() {
     const legend = document.getElementById('badgeLegend');
-    const toggleBtn = legend ? legend.querySelector('.legend-toggle') : null;
+    const header = legend ? legend.querySelector('.legend-header') : null;
     
-    if (!legend || !toggleBtn) return;
+    if (!legend || !header) return;
 
     // Check localStorage for saved state
     const savedState = localStorage.getItem('badgeLegendCollapsed');
@@ -397,12 +429,12 @@
       legend.classList.add('collapsed');
     }
 
-    // Toggle on click
-    toggleBtn.addEventListener('click', () => {
+    function toggleLegend() {
       const isCollapsed = legend.classList.toggle('collapsed');
-      // Save state to localStorage
       localStorage.setItem('badgeLegendCollapsed', isCollapsed.toString());
-    });
+    }
+
+    header.addEventListener('click', () => toggleLegend());
   }
 
   // Initialize when DOM is ready

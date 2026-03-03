@@ -68,7 +68,20 @@ def index():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.0"
+        cachebuster="v0.4.1"
+    )
+
+
+@app.route("/mobile")
+def mobile_viewer():
+    """Standalone mobile viewer: separate template and assets, no shared desktop code."""
+    defaults = {"center": {"lat": 45.783611, "lng": -108.542778}, "zoom": 20}
+    return render_template(
+        "mobile-viewer.html",
+        google_maps_api_key=GOOGLE_MAPS_API_KEY,
+        map_id=GOOGLE_MAPS_MAP_ID,
+        defaults=defaults,
+        cachebuster="v0.4.1"
     )
 
 @app.route('/favicon.ico')

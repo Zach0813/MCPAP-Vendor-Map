@@ -25,6 +25,38 @@
   const panelReturnVendorBadgeEl = els.panelReturnVendorBadge || (typeof document !== 'undefined' ? document.getElementById('panelReturnVendorBadge') : null);
   const panelBadgesContainer = (typeof document !== 'undefined' ? document.getElementById('panelBadges') : null);
 
+  // Clipboard copy helper
+  function copyToClipboard(text, onSuccess) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+        // Fallback
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          onSuccess();
+        } catch (_) {}
+      });
+    } else {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        onSuccess();
+      } catch (_) {}
+    }
+  }
+
   // Small accessible toast helper. Usage: showToast('Message', ms = 2000, anchorEl = null)
   // If anchorEl is provided, the toast will appear just above that element.
   function showToast(msg, ms = 2000, anchorEl = null) {
@@ -106,9 +138,7 @@
       });
     }
     // Update checkbox visibility based on admin mode
-    if (typeof MCPP.updateScheduledDaysCheckboxStates === 'function') {
-      MCPP.updateScheduledDaysCheckboxStates();
-    }
+    if (MCPP.updateScheduledDaysCheckboxStates) MCPP.updateScheduledDaysCheckboxStates();
   }
 
   // Update all panel badges (shows ALL badges that apply to this booth)
@@ -167,7 +197,7 @@
 
   function listRow(id, booth) {
     const name = (booth.biz && booth.biz.trim()) || (booth.vendor_name || '');
-    const displayId = (MCPP.formatBoothId ? MCPP.formatBoothId(id) : id);
+    const displayId = MCPP.formatBoothId ? MCPP.formatBoothId(id) : id;
     const el = document.createElement('div'); el.className = 'list-item'; el.tabIndex = 0;
     const sw = document.createElement('div'); sw.className = 'legend-swatch';
     const s = CAT[booth.category || 'standard'] || CAT.standard;
@@ -216,15 +246,7 @@
   }
 
   function categoryLabel(key) {
-    if (typeof MCPP.catNameForKey === 'function') return MCPP.catNameForKey(key);
-    const map = {
-      standard: 'Plant Vendor 🌿',
-      collaborator: 'Craft Vendor 🎨',
-      foodbeverage: 'Food/Beverage Vendor 🍽️',
-      activity: 'Activity/Entertainment 🎪',
-      misc: 'Miscellaneous 🧭'
-    };
-    return map[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+    return MCPP.catNameForKey ? MCPP.catNameForKey(key) : (key.charAt(0).toUpperCase() + key.slice(1));
   }
 
   function refreshList() {
@@ -236,7 +258,7 @@
     Object.entries(S.booths)
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
       .forEach(([id, booth]) => {
-        const formattedId = (MCPP.formatBoothId ? MCPP.formatBoothId(id) : id);
+        const formattedId = MCPP.formatBoothId ? MCPP.formatBoothId(id) : id;
         const hay = [id, formattedId, booth.biz || '', booth.vendor_name || '', booth.phone || '', booth.email || '', booth.website || '', booth.notes || '']
           .join(' ').toLowerCase();
         if (q && !hay.includes(q)) return;
@@ -347,13 +369,11 @@
 
   function select(id) {
     try {
-      const setPos = MCPP.setPos || ((target, pos) => target && typeof target.setPosition === 'function' && target.setPosition(pos));
+      const setPos = MCPP.setPos || ((target, pos) => target && target.setPosition && target.setPosition(pos));
       // If we're switching away from a booth with unsaved admin edits, revert it first.
-      try {
-        if (MCPP.boothEdit && typeof MCPP.boothEdit.revertIfDirty === 'function') {
-          MCPP.boothEdit.revertIfDirty();
-        }
-      } catch (_) {}
+      if (MCPP.boothEdit && MCPP.boothEdit.revertIfDirty) {
+        try { MCPP.boothEdit.revertIfDirty(); } catch (_) {}
+      }
       const prevSelected = S.selected;
       S.selected = id;
       const booth = S.booths[id];
@@ -373,24 +393,28 @@
       const displayId = MCPP.formatBoothId ? MCPP.formatBoothId(id) : id;
       if (els.boothId) {
         try {
-          if (typeof els.boothId.textContent === 'string') els.boothId.textContent = displayId;
+          if (els.boothId.textContent !== undefined) els.boothId.textContent = displayId;
           if ('value' in els.boothId) els.boothId.value = displayId;
         } catch (_) {}
       }
 
-      const fmtPhone = (typeof MCPP.formatPhoneNumber === 'function')
-        ? MCPP.formatPhoneNumber(booth.phone || '')
-        : (booth.phone || '');
+      const fmtPhone = MCPP.formatPhoneNumber ? MCPP.formatPhoneNumber(booth.phone || '') : (booth.phone || '');
       booth.phone = fmtPhone;
 
       if (els.widthFeet) els.widthFeet.value = booth.width_feet;
       if (els.lengthFeet) els.lengthFeet.value = booth.length_feet;
-      if (els.rotationDeg) els.rotationDeg.value = Math.round(booth.rotation_deg || 0);
+      if (els.rotationDeg) {
+        const deg = (typeof window.snapRotationToPreset === 'function')
+          ? window.snapRotationToPreset(booth.rotation_deg || 0)
+          : Math.round(booth.rotation_deg || 0);
+        booth.rotation_deg = deg;
+        els.rotationDeg.value = String(deg);
+      }
       if (els.category) {
-        const key = (MCPP.normalizeCategoryKey || ((k) => k))(booth.category || 'standard');
+        const key = MCPP.normalizeCategoryKey ? MCPP.normalizeCategoryKey(booth.category || 'standard') : (booth.category || 'standard');
         els.category.value = key;
       }
-      if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
+      if (MCPP.updateCategoryPill) MCPP.updateCategoryPill();
       // Update logo preview when selecting booth (logo URL is now in modal)
       // Also update modal's logo URL field if modal is open
       if (els.logoUrl) els.logoUrl.value = booth.logo_url || '';
@@ -402,9 +426,7 @@
         els.logoPreview.setAttribute('draggable', 'false');
       }
       // Update remove logo button state
-      if (typeof MCPP !== 'undefined' && typeof MCPP.updateRemoveLogoButton === 'function') {
-        MCPP.updateRemoveLogoButton();
-      }
+      if (MCPP.updateRemoveLogoButton) MCPP.updateRemoveLogoButton();
       if (els.biz) els.biz.value = booth.biz || '';
       if (els.vendorName) els.vendorName.value = booth.vendor_name || '';
       // Only show phone/email values if field has data AND (admin OR public)
@@ -458,28 +480,12 @@
                 e.preventDefault();
                 const txt = (booth.email || '').trim();
                 if (!txt) return;
-                const done = () => {
+                copyToClipboard(txt, () => {
                   const prev = emailChain.title;
                   emailChain.title = 'Copied!';
                   try { showToast('Email copied', 2000, emailChain); } catch (_) {}
                   setTimeout(() => { emailChain.title = prev; }, 1400);
-                };
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                  navigator.clipboard.writeText(txt).then(done).catch(() => {
-                    // fallback
-                    try {
-                      const ta = document.createElement('textarea');
-                      ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-                      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
-                    } catch (_) { /* ignore */ }
-                  });
-                } else {
-                  try {
-                    const ta = document.createElement('textarea');
-                    ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-                    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
-                  } catch (_) { /* ignore */ }
-                }
+                });
               } catch (_) {}
             };
           } else {
@@ -543,21 +549,12 @@
               e.preventDefault();
               const txt = (booth.business_address || '').trim();
               if (!txt) return;
-              const done = () => {
+              copyToClipboard(txt, () => {
                 const prev = els.businessAddressCopy.title;
                 els.businessAddressCopy.title = 'Copied!';
                 showToast('Address copied', 2000, els.businessAddressCopy);
                 setTimeout(() => { els.businessAddressCopy.title = prev; }, 2000);
-              };
-              if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(txt).then(done).catch(() => {});
-              } else {
-                try {
-                  const ta = document.createElement('textarea');
-                  ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-                  document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
-                } catch (_) { /* ignore */ }
-              }
+              });
             };
           } else {
             els.businessAddressCopy.title = '';
@@ -629,7 +626,7 @@
       }
 
       const styleFn = MCPP.style || (() => ({ stroke: '#3f7f7f' }));
-      const getCenter = MCPP.getVisualCenterAdjusted || ((b) => b.center);
+      const getCenter = MCPP.getVisualCenterAdjusted || ((b) => b && b.center);
 
       Object.entries(S.shapes).forEach(([bid, shape]) => {
         const sel = (bid === id);
@@ -644,7 +641,7 @@
         const pos = getCenter(boothData);
         if (shape.labelEl) {
           shape.labelEl.style.color = sel ? '#d6ff2e' : '#eaf6f5';
-          if (typeof shape.updateLabelStyle === 'function') shape.updateLabelStyle();
+          if (shape.updateLabelStyle) shape.updateLabelStyle();
         }
         if (shape.lab) setPos(shape.lab, pos);
         if (shape.centerDbg) {
@@ -654,16 +651,17 @@
       });
 
       if (els.editPanel) els.editPanel.classList.remove('hidden');
-      if (typeof MCPP.showEditor === 'function') MCPP.showEditor();
+      if (MCPP.showEditor) MCPP.showEditor();
       if (S.map) S.map.setOptions({ keyboardShortcuts: false });
       
       // Update remove logo button state after selection
-      if (typeof MCPP !== 'undefined' && typeof MCPP.updateRemoveLogoButton === 'function') {
+      if (MCPP.updateRemoveLogoButton) {
         setTimeout(() => MCPP.updateRemoveLogoButton(), 100);
       }
+      if (typeof MCPP.applyEditLockState === 'function') MCPP.applyEditLockState();
     } catch (err) {
       console.error('select() failed:', err);
-      if (typeof MCPP.showEditor === 'function') MCPP.showEditor();
+      if (MCPP.showEditor) MCPP.showEditor();
     }
   }
 
@@ -673,26 +671,20 @@
       if (typeof MCPP.showList === 'function') MCPP.showList();
       return;
     }
-    if (MCPP.boothEditDebug) {
-      console.log('[boothEdit] clearSelection (Back)', { selected: S.selected, snapshotId: MCPP.boothEdit && MCPP.boothEdit.snapshotId, dirty: MCPP.boothEdit && MCPP.boothEdit.dirty });
-    }
     // If admin backs out without saving, restore last captured state first.
-    try {
-      if (MCPP.boothEdit && typeof MCPP.boothEdit.revertIfDirty === 'function') {
-        const didRevert = MCPP.boothEdit.revertIfDirty();
-        if (MCPP.boothEditDebug) console.log('[boothEdit] clearSelection revertIfDirty returned', didRevert);
-      }
-      if (MCPP.boothEdit && typeof MCPP.boothEdit.clear === 'function') {
-        MCPP.boothEdit.clear();
-      }
-    } catch (_) {}
-    S.selected = null;
-    if (els.boothId) {
+    if (MCPP.boothEdit) {
       try {
-        if (typeof els.boothId.textContent === 'string') els.boothId.textContent = '—';
-        if ('value' in els.boothId) els.boothId.value = '';
+        if (MCPP.boothEdit.revertIfDirty) MCPP.boothEdit.revertIfDirty();
+        if (MCPP.boothEdit.clear) MCPP.boothEdit.clear();
       } catch (_) {}
     }
+    S.selected = null;
+      if (els.boothId) {
+        try {
+          if (els.boothId.textContent !== undefined) els.boothId.textContent = '—';
+          if ('value' in els.boothId) els.boothId.value = '';
+        } catch (_) {}
+      }
   updateScheduledDaysUI(null);
   updateReturnVendorUI(null);
   updateEventStaffUI(null);
@@ -702,28 +694,28 @@
       const assigned = !!(boothData.biz || boothData.vendor_name || boothData.notes || boothData.phone || boothData.email);
       const st = styleFn(boothData.category || 'standard', assigned);
       if (shape.poly) shape.poly.setOptions({ strokeColor: st.stroke, strokeWeight: 1, fillOpacity: 0.75 });
-      if (shape.labelEl) {
-        shape.labelEl.style.color = '#eaf6f5';
-        if (typeof shape.updateLabelStyle === 'function') shape.updateLabelStyle();
-      }
+        if (shape.labelEl) {
+          shape.labelEl.style.color = '#eaf6f5';
+          if (shape.updateLabelStyle) shape.updateLabelStyle();
+        }
       if (shape.centerDbg) {
         if ('map' in shape.centerDbg) shape.centerDbg.map = null;
         else if (typeof shape.centerDbg.setMap === 'function') shape.centerDbg.setMap(null);
       }
     });
     if (S.map) S.map.setOptions({ keyboardShortcuts: true });
-    if (typeof MCPP.showList === 'function') MCPP.showList();
+    if (MCPP.showList) MCPP.showList();
   }
 
   function redraw() {
-    Object.values(S.shapes).forEach((shape) => {
-      if (shape.poly) shape.poly.setMap(null);
-      if (shape.lab) shape.lab.map = null;
-      if (shape.centerDbg) {
-        if ('map' in shape.centerDbg) shape.centerDbg.map = null;
-        else if (typeof shape.centerDbg.setMap === 'function') shape.centerDbg.setMap(null);
-      }
-    });
+      Object.values(S.shapes).forEach((shape) => {
+        if (shape.poly) shape.poly.setMap(null);
+        if (shape.lab) shape.lab.map = null;
+        if (shape.centerDbg) {
+          if ('map' in shape.centerDbg) shape.centerDbg.map = null;
+          else if (shape.centerDbg.setMap) shape.centerDbg.setMap(null);
+        }
+      });
     S.shapes = {};
 
     const bounds = new google.maps.LatLngBounds();
@@ -744,9 +736,12 @@
       });
     }
     refreshList();
-    if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
-    if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
+    if (MCPP.postViewportSync) MCPP.postViewportSync();
+    if (MCPP.updateCategoryPill) MCPP.updateCategoryPill();
   }
+
+  // Expose copyToClipboard for use in other modules
+  MCPP.copyToClipboard = copyToClipboard;
 
 Object.assign(MCPP, {
     listRow,

@@ -24,60 +24,42 @@
   boothEdit.snapshotId = boothEdit.snapshotId || null;
   boothEdit.snapshot = boothEdit.snapshot || null;
   boothEdit.dirty = !!boothEdit.dirty;
-  // Debug: set MCPP.boothEditDebug = true in the browser console to log capture/revert/refill
-  const boothEditLog = (msg, detail) => {
-    if (typeof MCPP !== 'undefined' && MCPP.boothEditDebug) {
-      console.log('[boothEdit] ' + msg, detail !== undefined ? detail : '');
-    }
-  };
-
   boothEdit.capture = (id) => {
-    if (!id || !S.booths || !S.booths[id]) {
-      boothEditLog('capture SKIP (no id or booth)', { id, hasBooth: !!(id && S.booths && S.booths[id]) });
-      return;
-    }
+    if (!id || !S.booths || !S.booths[id]) return;
     boothEdit.snapshotId = id;
     boothEdit.snapshot = cloneBooth(S.booths[id]);
     boothEdit.dirty = false;
-    const b = S.booths[id];
-    boothEditLog('capture OK', { id, biz: (b && b.biz) || '', vendor_name: (b && b.vendor_name) || '' });
   };
 
   boothEdit.markDirty = () => {
-    if (!S.isAdmin) return;
-    if (!S.selected) return;
-    if (boothEdit.snapshotId !== S.selected) return;
+    if (!S.isAdmin || !S.selected || boothEdit.snapshotId !== S.selected) return;
     boothEdit.dirty = true;
-    boothEditLog('markDirty', { id: S.selected });
   };
 
   boothEdit.clear = () => {
-    boothEditLog('clear', { wasId: boothEdit.snapshotId });
     boothEdit.snapshotId = null;
     boothEdit.snapshot = null;
     boothEdit.dirty = false;
   };
 
   boothEdit.revertIfDirty = () => {
-    if (!S.isAdmin) { boothEdit.clear(); boothEditLog('revertIfDirty SKIP (not admin)'); return false; }
-    const id = S.selected;
-    const reason = !id ? 'no id' : boothEdit.snapshotId !== id ? 'snapshotId !== id' : !boothEdit.dirty ? 'not dirty' : !boothEdit.snapshot ? 'no snapshot' : !S.booths || !S.booths[id] ? 'no booth' : null;
-    if (reason) {
-      boothEditLog('revertIfDirty SKIP', { id, snapshotId: boothEdit.snapshotId, dirty: boothEdit.dirty, hasSnapshot: !!boothEdit.snapshot, reason });
+    if (!S.isAdmin || !S.selected || boothEdit.snapshotId !== S.selected || !boothEdit.dirty || !boothEdit.snapshot || !S.booths[S.selected]) {
+      if (!S.isAdmin) boothEdit.clear();
       return false;
     }
 
     // Restore last captured (saved) state
-    S.booths[id] = cloneBooth(boothEdit.snapshot);
-    const snap = boothEdit.snapshot;
-    boothEditLog('revertIfDirty RESTORED', { id, snapshotBiz: (snap && snap.biz) || '', snapshotVendor: (snap && snap.vendor_name) || '' });
+    S.booths[S.selected] = cloneBooth(boothEdit.snapshot);
 
-    // Refresh visuals/list to match restored state (rotation/geometry/etc.)
-    try { if (typeof MCPP.draw === 'function') MCPP.draw(id); } catch (_) {}
-    try { if (typeof MCPP.refreshList === 'function') MCPP.refreshList(); } catch (_) {}
-    try { if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync(); } catch (_) {}
-    try { if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill(); } catch (_) {}
-    try { if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges(); } catch (_) {}
+    // Refresh visuals/list to match restored state
+    const refresh = () => {
+      if (MCPP.draw) MCPP.draw(S.selected);
+      if (MCPP.refreshList) MCPP.refreshList();
+      if (MCPP.postViewportSync) MCPP.postViewportSync();
+      if (MCPP.updateCategoryPill) MCPP.updateCategoryPill();
+      if (MCPP.updateAllPanelBadges) MCPP.updateAllPanelBadges();
+    };
+    try { refresh(); } catch (_) {}
 
     boothEdit.dirty = false;
     return true;
@@ -163,66 +145,30 @@
     });
   }
 
-  if (returnVendorCheckbox) {
-    returnVendorCheckbox.addEventListener('change', () => {
-      const flag = !!returnVendorCheckbox.checked;
-      if (returnVendorDisplay) returnVendorDisplay.textContent = formatReturnVendor(flag);
-    });
-  }
+  // Note: returnVendor checkbox handler is below (consolidated with other badge handlers)
 
-  if (eventStaffCheckbox) {
-    // Update booth and UI only; persist when user clicks Assign / Save
-    eventStaffCheckbox.addEventListener('change', () => {
+  // Consolidated badge checkbox handler
+  const handleBadgeChange = (checkbox, property, updateDisplay) => {
+    if (!checkbox) return;
+    checkbox.addEventListener('change', () => {
       if (!S.selected) return;
-      const flag = !!eventStaffCheckbox.checked;
+      const flag = !!checkbox.checked;
       const booth = S.booths[S.selected];
       if (!booth) return;
-      booth.is_event_staff = flag;
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
+      booth[property] = flag;
+      if (updateDisplay && returnVendorDisplay) {
+        returnVendorDisplay.textContent = formatReturnVendor(flag);
+      }
+      if (MCPP.draw) MCPP.draw(S.selected);
+      if (MCPP.updateAllPanelBadges) MCPP.updateAllPanelBadges();
       boothEdit.markDirty();
     });
-  }
+  };
 
-  if (partnerVendorCheckbox) {
-    partnerVendorCheckbox.addEventListener('change', () => {
-      if (!S.selected) return;
-      const flag = !!partnerVendorCheckbox.checked;
-      const booth = S.booths[S.selected];
-      if (!booth) return;
-      booth.is_partner_vendor = flag;
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
-      boothEdit.markDirty();
-    });
-  }
-
-  if (featuredVendorCheckbox) {
-    featuredVendorCheckbox.addEventListener('change', () => {
-      if (!S.selected) return;
-      const flag = !!featuredVendorCheckbox.checked;
-      const booth = S.booths[S.selected];
-      if (!booth) return;
-      booth.is_featured_vendor = flag;
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
-      boothEdit.markDirty();
-    });
-  }
-
-  if (returnVendorCheckbox) {
-    returnVendorCheckbox.addEventListener('change', () => {
-      if (!S.selected) return;
-      const flag = !!returnVendorCheckbox.checked;
-      const booth = S.booths[S.selected];
-      if (!booth) return;
-      booth.is_return_vendor = flag;
-      if (returnVendorDisplay) returnVendorDisplay.textContent = formatReturnVendor(flag);
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
-      boothEdit.markDirty();
-    });
-  }
+  handleBadgeChange(eventStaffCheckbox, 'is_event_staff');
+  handleBadgeChange(partnerVendorCheckbox, 'is_partner_vendor');
+  handleBadgeChange(featuredVendorCheckbox, 'is_featured_vendor');
+  handleBadgeChange(returnVendorCheckbox, 'is_return_vendor', true);
 
   // Update preview when logo URL changes (in modal)
   function updateLogoPreview(url) {
@@ -297,12 +243,10 @@
       S.booths[S.selected].logo_url = '';
       updateLogoPreview('');
       updateRemoveLogoButton();
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-      if (typeof MCPP.save === 'function') await MCPP.save(false);
+      if (MCPP.draw) MCPP.draw(S.selected);
+      if (MCPP.save) await MCPP.save(false);
       
-      if (typeof showToast === 'function') {
-        showToast('Logo removed', 2000, els.removeLogoBtn);
-      }
+      if (showToast) showToast('Logo removed', 2000, els.removeLogoBtn);
     });
   }
 
@@ -321,9 +265,7 @@
   }
 
   // Expose updateRemoveLogoButton globally so it can be called from other modules
-  if (typeof MCPP !== 'undefined') {
-    MCPP.updateRemoveLogoButton = updateRemoveLogoButton;
-  }
+  MCPP.updateRemoveLogoButton = updateRemoveLogoButton;
 
   if (els.logoModalClose) {
     els.logoModalClose.addEventListener('click', closeLogoModal);
@@ -376,15 +318,17 @@
       if (!S.selected || !S.booths[S.selected]) return;
       const url = (lastUploadedLogoUrl || (els.logoUrl && els.logoUrl.value || '').trim());
       S.booths[S.selected].logo_url = url;
+      // Keep main form in sync so Assign/Save doesn't overwrite with blank
+      if (els.logoUrl) els.logoUrl.value = url;
       updateLogoPreview(url);
       updateRemoveLogoButton();
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-      if (typeof MCPP.save === 'function') await MCPP.save(false);
+      if (MCPP.draw) MCPP.draw(S.selected);
+      if (MCPP.save) await MCPP.save(false);
       boothEdit.capture(S.selected);
       closeLogoModal();
-      if (typeof showToast === 'function') {
-        showToast('Logo updated', 2000, els.logoModalSave);
-      }
+      // Refresh logo badges on map so the new logo appears immediately
+      if (MCPP.postViewportSync) MCPP.postViewportSync();
+      if (showToast) showToast('Logo updated', 2000, els.logoModalSave);
     });
   }
 
@@ -425,9 +369,7 @@
           updateLogoPreview(result.url);
           updateRemoveLogoButton();
           setFileInputLabel(file.name, true);
-          if (typeof showToast === 'function') {
-            showToast('Image uploaded successfully', 2000);
-          }
+          if (showToast) showToast('Image uploaded successfully', 2000);
         } else {
           setFileInputLabel('Select file – no file chosen', false);
           fileInput.value = '';
@@ -479,9 +421,9 @@
         MCPP.normalizeBoothGeometry(baseBooth);
       }
       S.booths[id] = baseBooth;
-      if (typeof MCPP.draw === 'function') MCPP.draw(id);
-      if (typeof MCPP.select === 'function') MCPP.select(id);
-      if (typeof MCPP.save === 'function') await MCPP.save(false);
+      if (MCPP.draw) MCPP.draw(id);
+      if (MCPP.select) MCPP.select(id);
+      if (MCPP.save) await MCPP.save(false);
     });
   }
 
@@ -524,17 +466,17 @@
         MCPP.normalizeBoothGeometry(clone);
       }
       S.booths[id] = clone;
-      if (typeof MCPP.draw === 'function') MCPP.draw(id);
-      if (typeof MCPP.select === 'function') MCPP.select(id);
-      if (typeof MCPP.save === 'function') await MCPP.save(false);
+      if (MCPP.draw) MCPP.draw(id);
+      if (MCPP.select) MCPP.select(id);
+      if (MCPP.save) await MCPP.save(false);
     });
   }
 
   const normalizeRotation = (value) => {
     let deg = Number(value);
     if (!Number.isFinite(deg)) deg = 0;
-    deg = deg % 360;
-    if (deg < 0) deg += 360;
+    deg = (deg % 360 + 360) % 360;
+    if (typeof window.snapRotationToPreset === 'function') return window.snapRotationToPreset(deg);
     return deg;
   };
 
@@ -544,16 +486,16 @@
       const booth = S.booths[S.selected];
       booth.biz = (els.biz.value || '').trim();
       booth.vendor_name = (els.vendorName.value || '').trim();
-      const fmtPhone = (typeof MCPP.formatPhoneNumber === 'function')
-        ? MCPP.formatPhoneNumber(els.phone.value)
-        : (els.phone.value || '').trim();
+      const fmtPhone = MCPP.formatPhoneNumber ? MCPP.formatPhoneNumber(els.phone.value) : (els.phone.value || '').trim();
       booth.phone = fmtPhone;
       if (els.phone) els.phone.value = fmtPhone;
       booth.email = (els.email.value || '').trim();
       booth.website = (els.website.value || '').trim();
       booth.business_address = (els.businessAddress && els.businessAddress.value || '').trim();
       booth.notes = (els.notes.value || '').trim();
-      booth.logo_url = (els.logoUrl && els.logoUrl.value || '').trim();
+      // Use form logo URL; if form is blank (e.g. logo was set only via modal), keep existing booth logo so we don't overwrite
+      const formLogo = (els.logoUrl && els.logoUrl.value || '').trim();
+      booth.logo_url = formLogo !== '' ? formLogo : (booth.logo_url || '');
       // If phone/email fields are empty, treat as hidden (no empty fields for viewers)
       booth.phone_public = (!booth.phone || !booth.phone.trim()) ? false : !els.phonePublic.checked;
       booth.email_public = (!booth.email || !booth.email.trim()) ? false : !els.emailPublic.checked;
@@ -575,19 +517,21 @@
       if (els.rotationDeg) {
         const deg = normalizeRotation(els.rotationDeg.value || booth.rotation_deg);
         booth.rotation_deg = deg;
-        els.rotationDeg.value = Math.round(deg);
+        els.rotationDeg.value = String(deg);
       }
-      if (booth.center && typeof MCPP.boothAnchorFromCenter === 'function') {
+      if (booth.center && MCPP.boothAnchorFromCenter) {
         booth.anchor = MCPP.boothAnchorFromCenter(booth.center, booth);
       }
-      if (typeof MCPP.normalizeBoothGeometry === 'function') {
+      if (MCPP.normalizeBoothGeometry) {
         MCPP.normalizeBoothGeometry(booth);
       }
       booth.category = getNormalizeKey()(els.category.value || 'standard');
       updateCategoryPill();
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-      if (typeof MCPP.save === 'function') await MCPP.save(false);
+      if (MCPP.draw) MCPP.draw(S.selected);
+      if (MCPP.save) await MCPP.save(false);
       boothEdit.capture(S.selected);
+      // Refresh map logo badges so any logo change is visible immediately
+      if (MCPP.postViewportSync) MCPP.postViewportSync();
       
       // Show toast notification
       showToast('Changes saved successfully');
@@ -634,13 +578,36 @@
       if (!booth) return;
       const deg = normalizeRotation(els.rotationDeg.value);
       booth.rotation_deg = deg;
-      els.rotationDeg.value = Math.round(deg);
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-      if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
+      els.rotationDeg.value = String(deg);
+      if (MCPP.draw) MCPP.draw(S.selected);
+      if (MCPP.postViewportSync) MCPP.postViewportSync();
       boothEdit.markDirty();
     };
     els.rotationDeg.addEventListener('input', applyRotationInput);
     els.rotationDeg.addEventListener('change', applyRotationInput);
+  }
+
+  function applyDimensionInputs() {
+    if (!S.selected) return;
+    const booth = S.booths[S.selected];
+    if (!booth) return;
+    const w = Math.max(1, parseInt(els.widthFeet.value, 10) || booth.width_feet);
+    const l = Math.max(1, parseInt(els.lengthFeet.value, 10) || booth.length_feet);
+    booth.width_feet = w;
+    booth.length_feet = l;
+    if (els.widthFeet) els.widthFeet.value = w;
+    if (els.lengthFeet) els.lengthFeet.value = l;
+    if (MCPP.draw) MCPP.draw(S.selected);
+    if (MCPP.postViewportSync) MCPP.postViewportSync();
+    boothEdit.markDirty();
+  }
+  if (els.widthFeet) {
+    els.widthFeet.addEventListener('input', applyDimensionInputs);
+    els.widthFeet.addEventListener('change', applyDimensionInputs);
+  }
+  if (els.lengthFeet) {
+    els.lengthFeet.addEventListener('input', applyDimensionInputs);
+    els.lengthFeet.addEventListener('change', applyDimensionInputs);
   }
 
   if (els.unassign) {
@@ -683,12 +650,12 @@
       if (els.phonePublic) els.phonePublic.checked = false;
       if (els.emailPublic) els.emailPublic.checked = false;
       
-      if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
+      if (MCPP.draw) MCPP.draw(S.selected);
       // Refresh logo badges on map so the booth's logo disappears (no auto-save)
-      if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
-      if (typeof MCPP.updateRemoveLogoButton === 'function') MCPP.updateRemoveLogoButton();
-      if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
-      if (typeof MCPP.updateAllPanelBadges === 'function') MCPP.updateAllPanelBadges();
+      if (MCPP.postViewportSync) MCPP.postViewportSync();
+      if (MCPP.updateRemoveLogoButton) MCPP.updateRemoveLogoButton();
+      if (MCPP.updateCategoryPill) MCPP.updateCategoryPill();
+      if (MCPP.updateAllPanelBadges) MCPP.updateAllPanelBadges();
       boothEdit.markDirty();
     });
   }
@@ -713,10 +680,19 @@
         // Remove badge overlay (status badges like event staff, partner vendor, etc.)
         if (shape.badgeOverlay) {
           try {
-            if (typeof shape.badgeOverlay.remove === 'function') shape.badgeOverlay.remove();
-            else if (typeof shape.badgeOverlay.setMap === 'function') shape.badgeOverlay.setMap(null);
+            if (shape.badgeOverlay.remove) shape.badgeOverlay.remove();
+            else if (shape.badgeOverlay.setMap) shape.badgeOverlay.setMap(null);
           } catch (e) {}
           shape.badgeOverlay = null;
+        }
+        
+        // Remove category overlay (top-left category emoji badge)
+        if (shape.categoryOverlay) {
+          try {
+            if (shape.categoryOverlay.remove) shape.categoryOverlay.remove();
+            else if (shape.categoryOverlay.setMap) shape.categoryOverlay.setMap(null);
+          } catch (e) {}
+          shape.categoryOverlay = null;
         }
         
         // Remove center debug marker
@@ -749,17 +725,15 @@
       delete S.booths[id];
       S.selected = null;
       if (els.boothId && 'value' in els.boothId) els.boothId.value = '';
-      if (typeof MCPP.save === 'function') await MCPP.save(false);
-      if (typeof MCPP.refreshList === 'function') MCPP.refreshList();
-      if (typeof MCPP.showList === 'function') MCPP.showList();
+      if (MCPP.save) await MCPP.save(false);
+      if (MCPP.refreshList) MCPP.refreshList();
+      if (MCPP.showList) MCPP.showList();
     });
   }
 
   if (els.exportCSV) {
     els.exportCSV.addEventListener('click', () => {
-      if (typeof MCPP.dl === 'function' && typeof MCPP.csv === 'function') {
-        MCPP.dl('booths.csv', MCPP.csv());
-      }
+      if (MCPP.dl && MCPP.csv) MCPP.dl('booths.csv', MCPP.csv());
     });
   }
 
@@ -778,9 +752,7 @@
 
   if (els.exportJSON) {
     els.exportJSON.addEventListener('click', () => {
-      if (typeof MCPP.dl === 'function') {
-        MCPP.dl('booths.json', JSON.stringify(S.booths, null, 2), 'application/json');
-      }
+      if (MCPP.dl) MCPP.dl('booths.json', JSON.stringify(S.booths, null, 2), 'application/json');
     });
   }
 
@@ -788,7 +760,16 @@
     els.backToList.addEventListener('click', () => {
       // If admin made changes but didn't save, restore the last captured state
       try { boothEdit.revertIfDirty(); } catch (_) {}
-      if (typeof MCPP.clearSelection === 'function') MCPP.clearSelection();
+      if (MCPP.clearSelection) MCPP.clearSelection();
+    });
+  }
+
+  if (els.boothLockBtn && S.selected !== undefined) {
+    els.boothLockBtn.addEventListener('click', () => {
+      if (!S.isAdmin || !S.selected) return;
+      if (!S.boothEditLockedById) S.boothEditLockedById = {};
+      S.boothEditLockedById[S.selected] = !S.boothEditLockedById[S.selected];
+      if (typeof MCPP.applyEditLockState === 'function') MCPP.applyEditLockState();
     });
   }
 
@@ -824,15 +805,19 @@
     }
   });
 
+  // Debounce search input for better performance
+  let searchTimeout = null;
   if (els.listSearch) {
     els.listSearch.addEventListener('input', () => {
-      if (typeof MCPP.refreshList === 'function') MCPP.refreshList();
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        if (MCPP.refreshList) MCPP.refreshList();
+      }, 150);
     });
   }
 
-  if (els.phone) {
+  if (els.phone && MCPP.formatPhoneNumber) {
     const formatInputPhone = () => {
-      if (typeof MCPP.formatPhoneNumber !== 'function') return;
       els.phone.value = MCPP.formatPhoneNumber(els.phone.value);
     };
     els.phone.addEventListener('blur', formatInputPhone);
@@ -872,8 +857,8 @@
           body: JSON.stringify({ pin })
         });
         if (resp.ok) {
-          if (typeof MCPP.who === 'function') await MCPP.who();
-          if (typeof MCPP.resetToListPanel === 'function') MCPP.resetToListPanel();
+          if (MCPP.who) await MCPP.who();
+          if (MCPP.resetToListPanel) MCPP.resetToListPanel();
           if (els.profileMenu) els.profileMenu.classList.add('hidden');
           loginLogoutBtn.textContent = 'Logout';
         } else {
@@ -881,103 +866,16 @@
         }
       } else {
         await fetch('/logout', { method: 'POST' });
-        if (typeof MCPP.who === 'function') await MCPP.who();
-        if (typeof MCPP.resetToListPanel === 'function') MCPP.resetToListPanel();
+        if (MCPP.who) await MCPP.who();
+        if (MCPP.resetToListPanel) MCPP.resetToListPanel();
         if (els.profileMenu) els.profileMenu.classList.add('hidden');
         loginLogoutBtn.textContent = 'Login';
       }
     });
   }
 
-  if (els.locate) {
-    // Store the location marker at module scope
-    let locationMarker = null;
-    
-    // Helper function to remove location marker
-    const removeLocationMarker = () => {
-      if (locationMarker) {
-        try {
-          locationMarker.setMap(null);
-          google.maps.event.clearInstanceListeners(locationMarker);
-        } catch (e) {
-          console.error('Error removing marker:', e);
-        }
-        locationMarker = null;
-      }
-    };
-    
-    // Expose globally so other parts can clear it
-    MCPP.removeLocationMarker = removeLocationMarker;
-    
-    // Initialize Google Places Autocomplete on the address input
-    const initAutocomplete = () => {
-      if (!els.addr) return;
-      if (!window.google || !google.maps || !google.maps.places || !google.maps.places.Autocomplete) {
-        console.warn('Google Places API not loaded yet');
-        return;
-      }
-      
-      const autocomplete = new google.maps.places.Autocomplete(els.addr, {
-        fields: ['geometry', 'formatted_address', 'name', 'address_components'],
-        types: ['address']
-      });
-
-      // Listen for place selection from autocomplete dropdown
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        
-        if (!place.geometry || !place.geometry.location) {
-          // User pressed Enter without selecting from dropdown
-          return;
-        }
-
-        // Update input with formatted address immediately when selected
-        const displayAddress = place.formatted_address || place.name || '';
-        els.addr.value = displayAddress;
-
-        // Remove previous location marker if it exists
-        removeLocationMarker();
-
-        // Add a standard red marker at the location
-        if (S.map) {
-          locationMarker = new google.maps.Marker({
-            position: place.geometry.location,
-            map: S.map,
-            title: displayAddress,
-            animation: google.maps.Animation.DROP,
-            zIndex: 9999,
-            clickable: true,
-            cursor: 'pointer'
-          });
-          
-          // Remove marker when clicked
-          google.maps.event.addListener(locationMarker, 'click', function() {
-            removeLocationMarker();
-          });
-        }
-
-        // Valid place selected from dropdown - navigate to it at zoom level 18
-        if (S.map) {
-          const vp = place.geometry.viewport || new google.maps.LatLngBounds(
-            place.geometry.location,
-            place.geometry.location
-          );
-          const prevMin = S.map.get('minZoom');
-          S.map.setOptions({ minZoom: 18 });
-          S.map.fitBounds(vp, { top: 40, bottom: 40, left: 20, right: 20 });
-          const once = S.map.addListener('idle', () => {
-            S.map.setOptions({ minZoom: (prevMin == null ? 2 : prevMin) });
-            S.didInitialViewport = true;
-            if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
-            google.maps.event.removeListener(once);
-          });
-        }
-      });
-      
-      console.log('Places Autocomplete initialized');
-    };
-    
-    // Initialize autocomplete for business address field
+  // Initialize autocomplete for business address field
+  {
     const initBusinessAddressAutocomplete = () => {
       if (!els.businessAddress) return;
       if (!window.google || !google.maps || !google.maps.places || !google.maps.places.Autocomplete) {
@@ -1034,71 +932,14 @@
 
     // Try to initialize immediately if API is ready
     if (window.google && google.maps && google.maps.places) {
-      initAutocomplete();
       initBusinessAddressAutocomplete();
     }
-    
-    // Also try after a short delay to handle async loading
-    setTimeout(() => {
-      initAutocomplete();
-      initBusinessAddressAutocomplete();
-    }, 1000);
-    
-    // And expose it globally so map-init can call it when ready
-    MCPP.initAutocomplete = initAutocomplete;
+    setTimeout(() => initBusinessAddressAutocomplete(), 1000);
     MCPP.initBusinessAddressAutocomplete = initBusinessAddressAutocomplete;
-
-    els.locate.addEventListener('click', () => {
-      const q = els.addr && els.addr.value.trim();
-      if (!q) return;
-      
-      // Fall back to geocoding the address string
-      if (!S.geocoder) S.geocoder = new google.maps.Geocoder();
-      S.geocoder.geocode({ address: q }, (res, status) => {
-        if (status === 'OK' && res[0]) {
-          // Remove previous location marker if it exists
-          removeLocationMarker();
-
-          // Add a standard red marker at the location
-          locationMarker = new google.maps.Marker({
-            position: res[0].geometry.location,
-            map: S.map,
-            title: res[0].formatted_address || q,
-            animation: google.maps.Animation.DROP,
-            zIndex: 9999,
-            clickable: true,
-            cursor: 'pointer'
-          });
-          
-          // Remove marker when clicked
-          google.maps.event.addListener(locationMarker, 'click', function() {
-            removeLocationMarker();
-          });
-
-          const vp = res[0].geometry.viewport || new google.maps.LatLngBounds(res[0].geometry.location, res[0].geometry.location);
-          const prevMin = S.map.get('minZoom');
-          S.map.setOptions({ minZoom: 18 });
-          S.map.fitBounds(vp, { top: 40, bottom: 40, left: 20, right: 20 });
-          const once = S.map.addListener('idle', () => {
-            S.map.setOptions({ minZoom: (prevMin == null ? 2 : prevMin) });
-            S.didInitialViewport = true;
-            if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
-            google.maps.event.removeListener(once);
-          });
-        } else {
-          alert('Address not found');
-        }
-      });
-    });
   }
 
   if (els.fit) {
     els.fit.addEventListener('click', () => {
-      // Remove location marker when re-centering
-      if (typeof MCPP.removeLocationMarker === 'function') {
-        MCPP.removeLocationMarker();
-      }
-      
       if (!Object.keys(S.shapes).length) return;
       const bounds = new google.maps.LatLngBounds();
       Object.values(S.shapes).forEach((shape) => shape.poly.getPath().forEach((ll) => bounds.extend(ll)));
@@ -1107,7 +948,7 @@
       S.map.fitBounds(bounds, { top: 40, bottom: 40, left: 20, right: 20 });
       const once = S.map.addListener('idle', () => {
         S.map.setOptions({ minZoom: (prevMin == null ? 2 : prevMin) });
-        if (typeof MCPP.postViewportSync === 'function') MCPP.postViewportSync();
+        if (MCPP.postViewportSync) MCPP.postViewportSync();
         google.maps.event.removeListener(once);
       });
     });
@@ -1137,7 +978,7 @@
     const dy = north * FT;
     const { lat, dLng } = d2ll(booth.center.lat, dx, dy);
     booth.center = { lat, lng: booth.center.lng + dLng };
-    if (typeof MCPP.draw === 'function') MCPP.draw(S.selected);
-    if (typeof MCPP.save === 'function') MCPP.save(true);
+    if (MCPP.draw) MCPP.draw(S.selected);
+    if (MCPP.save) MCPP.save(true);
   });
 })();

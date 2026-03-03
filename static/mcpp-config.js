@@ -2,14 +2,16 @@
 const START_ZOOM = 20;
 const FT = 0.3048;
 const SNAP = 10;
+/** Only these 5 rotation values (0–90°) are allowed; mirrored rotations use the same presets. Badges use set positions per preset. */
+const ROTATION_PRESETS = [0, 22.5, 45, 67.5, 90];
 const DEFAULT_CENTER = { lat: 45.783611, lng: -108.542778 };
 const KNOB_RADIUS_PX_FALLBACK = 28;
 
 const CAT = {
   standard:     { f:'#1e392f', s:'#4ea186' },   // Plant Vendor
   collaborator: { f:'#2f3346', s:'#7582d8' },   // Craft Vendor
-  foodbeverage: { f:'#4a2c1b', s:'#e28850' },   // Food/Beverage Vendor
-  activity:     { f:'#2f1f3f', s:'#c06ae6' },   // Activity/Entertainment
+  foodbeverage: { f:'#4a2c1b', s:'#e28850' },   // Food & Drink
+  activity:     { f:'#2f1f3f', s:'#c06ae6' },   // Entertainment
   misc:         { f:'#353535', s:'#8a8a8a' }    // Miscellaneous
 };
 
@@ -59,10 +61,11 @@ window.mcppSetLabelFont = (base, min, mult = 1.0) => {
 
 /* === Logo Badge Overlay (Trial Feature) === */
 let SHOW_LOGO_BADGES = true;   // Toggle to enable/disable booth logo badges
-const LOGO_BADGE_MIN_ZOOM    = 20.7;     // Minimum zoom level for displaying badges
-const LOGO_BADGE_BASE_PX     = 48;     // Base size in pixels at zoom level 20
-const LOGO_BADGE_MIN_PX      = 48;     // Minimum badge size in pixels
-const LOGO_BADGE_MAX_PX      = 48;     // Maximum badge size in pixels
+const LOGO_BADGE_MIN_ZOOM    = 19.7;     // Minimum zoom level for displaying logo pictures
+const BADGE_RIBBON_MIN_ZOOM  = 20.7;     // Minimum zoom for category/status ribbon badges (logos only below this)
+const LOGO_BADGE_BASE_PX     = 48;     // Size at zoom 21; scales 2x per zoom level (matches polygon scaling)
+const LOGO_BADGE_MIN_PX      = 20;     // Floor at min visible zoom (19.7)
+const LOGO_BADGE_MAX_PX      = 96;     // Cap at max zoom so logo stays inside polygon
 
 // Default placeholder image for vendor logos (SVG, inline base64)
 const LOGO_BADGE_PLACEHOLDER = 'data:image/svg+xml;base64,' + btoa(`
@@ -74,12 +77,32 @@ const LOGO_BADGE_PLACEHOLDER = 'data:image/svg+xml;base64,' + btoa(`
 
 /* Fine-tuning for logo badge centering */
 
+function snapRotationToPreset(deg) {
+  if (typeof ROTATION_PRESETS === 'undefined' || !ROTATION_PRESETS.length) return (Math.round(Number(deg) || 0) % 360 + 360) % 360;
+  let d = Number(deg);
+  if (!Number.isFinite(d)) d = 0;
+  d = (d % 360 + 360) % 360;
+  let best = ROTATION_PRESETS[0];
+  let bestDiff = Math.abs((d - best + 180) % 360 - 180);
+  for (let i = 1; i < ROTATION_PRESETS.length; i++) {
+    const diff = Math.abs((d - ROTATION_PRESETS[i] + 180) % 360 - 180);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = ROTATION_PRESETS[i];
+    }
+  }
+  return best;
+}
+
 Object.assign(window, {
   START_ZOOM,
   FT,
   SNAP,
+  ROTATION_PRESETS,
+  snapRotationToPreset,
   DEFAULT_CENTER,
-  SHOW_CENTER_DEBUG
+  SHOW_CENTER_DEBUG,
+  BADGE_RIBBON_MIN_ZOOM
 });
 
 window.mcppShowLabels = (v = !SHOW_LABELS) => {

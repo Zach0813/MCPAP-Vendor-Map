@@ -6,8 +6,8 @@
 
   window.initMCPPMap = async function initMCPPMap() {
     try {
-      if (typeof MCPP.who === 'function') await MCPP.who();
-      if (typeof MCPP.load === 'function') await MCPP.load();
+      if (MCPP.who) await MCPP.who();
+      if (MCPP.load) await MCPP.load();
 
       S.map = new google.maps.Map(document.getElementById('map'), {
         center: DEFAULT_CENTER,
@@ -48,10 +48,26 @@
       (function waitForProjectionAndDraw(attempts = 0) {
         const ready = S.proj && typeof S.proj.getProjection === 'function' && S.proj.getProjection();
         if (ready) {
-          if (typeof MCPP.redraw === 'function') MCPP.redraw();
+          if (MCPP.redraw) MCPP.redraw();
           const syncOnce = S.map.addListener('idle', () => {
-            if (typeof MCPP.syncOverlayCenters === 'function') MCPP.syncOverlayCenters();
+            if (MCPP.syncOverlayCenters) MCPP.syncOverlayCenters();
             google.maps.event.removeListener(syncOnce);
+            if (S.shapes && Object.keys(S.shapes).length > 0) {
+              const bounds = new google.maps.LatLngBounds();
+              Object.values(S.shapes).forEach((shape) => {
+                if (shape.poly && shape.poly.getPath) {
+                  shape.poly.getPath().forEach((ll) => bounds.extend(ll));
+                }
+              });
+              if (!bounds.isEmpty()) {
+                S.map.fitBounds(bounds, { top: 40, bottom: 40, left: 20, right: 20 });
+                S.didInitialViewport = true;
+                const afterFit = S.map.addListener('idle', () => {
+                  if (MCPP.postViewportSync) MCPP.postViewportSync();
+                  google.maps.event.removeListener(afterFit);
+                });
+              }
+            }
           });
         } else if (attempts < 40) {
           requestAnimationFrame(() => waitForProjectionAndDraw(attempts + 1));
@@ -67,13 +83,20 @@
 
       const onZoomChanged = () => {
         clampTilt();
-        if (typeof MCPP.updateLabelVisibility === 'function') MCPP.updateLabelVisibility();
-        if (typeof MCPP.updateLabelLayoutForZoom === 'function') MCPP.updateLabelLayoutForZoom();
+        if (S.map) {
+          var z = S.map.getZoom();
+          if (typeof console !== 'undefined' && console.log) {
+            console.log('[MCPP] Zoom:', z != null ? Math.round(z * 100) / 100 : '—');
+          }
+        }
+        if (MCPP.updateLabelVisibility) MCPP.updateLabelVisibility();
+        if (MCPP.updateLabelLayoutForZoom) MCPP.updateLabelLayoutForZoom();
       };
 
       S.map.addListener('idle', clampTilt);
       S.map.addListener('maptypeid_changed', clampTilt);
       S.map.addListener('zoom_changed', onZoomChanged);
+      onZoomChanged();
 
       const ensureMinZoom = () => {
         if (S.didInitialViewport) return;
@@ -86,7 +109,7 @@
       });
 
       S.map.addListener('click', () => {
-        if (typeof MCPP.resetToListPanel === 'function') MCPP.resetToListPanel();
+        if (MCPP.resetToListPanel) MCPP.resetToListPanel();
       });
 
       if (window.__DEFAULTS__ && window.__DEFAULTS__.address) {
@@ -101,9 +124,9 @@
               S.map.setOptions({ minZoom: (prevMin == null ? 2 : prevMin) });
               S.didInitialViewport = true;
               requestAnimationFrame(() => {
-                if (typeof MCPP.syncOverlayCenters === 'function') MCPP.syncOverlayCenters();
-                if (typeof MCPP.updateLabelVisibility === 'function') MCPP.updateLabelVisibility();
-                if (typeof MCPP.updateLabelLayoutForZoom === 'function') MCPP.updateLabelLayoutForZoom();
+                if (MCPP.syncOverlayCenters) MCPP.syncOverlayCenters();
+                if (MCPP.updateLabelVisibility) MCPP.updateLabelVisibility();
+                if (MCPP.updateLabelLayoutForZoom) MCPP.updateLabelLayoutForZoom();
               });
               google.maps.event.removeListener(onceGeo);
             });
@@ -111,19 +134,15 @@
         });
       }
 
-      if (typeof MCPP.showList === 'function') MCPP.showList();
-      if (typeof MCPP.updateCategoryPill === 'function') MCPP.updateCategoryPill();
+      if (MCPP.showList) MCPP.showList();
+      if (MCPP.updateCategoryPill) MCPP.updateCategoryPill();
       
-      // Initialize Places Autocomplete after map is ready
-      if (typeof MCPP.initAutocomplete === 'function') {
-        setTimeout(() => MCPP.initAutocomplete(), 500);
-      }
-      if (typeof MCPP.initBusinessAddressAutocomplete === 'function') {
+      if (MCPP.initBusinessAddressAutocomplete) {
         setTimeout(() => MCPP.initBusinessAddressAutocomplete(), 500);
       }
     } catch (err) {
       console.error('[MCPP] init failed', err);
-      if (typeof MCPP.showBootError === 'function') {
+      if (MCPP.showBootError) {
         MCPP.showBootError(err && err.message ? err.message : String(err));
       }
     }
@@ -131,7 +150,7 @@
 
   setTimeout(() => {
     if (!window.google || !google.maps) {
-      if (typeof MCPP.showBootError === 'function') {
+      if (MCPP.showBootError) {
         MCPP.showBootError('Google Maps failed to load (403 or network). Check API key & restrictions.');
       }
     }

@@ -172,11 +172,11 @@
 
   function catNameForKey(key) {
     const map = {
-      standard: 'Plant Vendor 🌿',
+      standard: 'Plant Vendor 🪴',
       collaborator: 'Craft Vendor 🎨',
-      foodbeverage: 'Food/Beverage Vendor 🍽️',
-      activity: 'Activity/Entertainment 🎪',
-      misc: 'Miscellaneous 🧭'
+      foodbeverage: 'Food & Drink 🍽️',
+      activity: 'Entertainment 🎪',
+      misc: 'Miscellaneous ✨'
     };
     const normalized = normalizeCategoryKey(key);
     return map[normalized] || map.standard;

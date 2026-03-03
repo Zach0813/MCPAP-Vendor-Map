@@ -112,26 +112,32 @@ function latLngFromAny(pt) {
     return valid ? bounds : null;
   }
 
+  function getRibbonBadgeMinZoom() {
+    return (typeof BADGE_RIBBON_MIN_ZOOM !== 'undefined') ? BADGE_RIBBON_MIN_ZOOM : 20.75;
+  }
+
   function updateOverlapVisibility() {
     if (!S || !S.shapes) return;
     
-    // Check current zoom level to determine if badges should be visible at all
-    const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
-    const showBadgesAtZoom = (zcur != null) && (zcur >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75));
+    // Ribbon badges (category/status) only at higher zoom; logos use LOGO_BADGE_MIN_ZOOM elsewhere
+    const zcur = (S.map && S.map.getZoom) ? S.map.getZoom() : null;
+    const showBadgesAtZoom = (zcur != null) && (zcur >= getRibbonBadgeMinZoom());
     
     Object.entries(S.shapes).forEach(([id, shape]) => {
       if (!shape) return;
       const baseLabel = shape.baseLabelVisible !== false;
-      if (typeof shape.setLabelVisible === 'function') shape.setLabelVisible(baseLabel);
+      if (shape.setLabelVisible) shape.setLabelVisible(baseLabel);
       else if (shape.labelEl) shape.labelEl.style.display = baseLabel ? '' : 'none';
-      if (typeof shape.updateLabelStyle === 'function') shape.updateLabelStyle();
+      if (shape.updateLabelStyle) shape.updateLabelStyle();
 
       const baseBadge = shape.badgeBaseVisible !== false;
       shape.badgeHiddenByOverlap = false;
       const badgeEntry = S.logoBadges && S.logoBadges[id];
       if (badgeEntry) badgeEntry.hiddenByOverlap = false;
-      if (shape.badgeOverlay && typeof shape.badgeOverlay.setVisible === 'function') {
-        // Only show badge if both baseBadge is true AND zoom level is appropriate
+      if (shape.categoryOverlay && shape.categoryOverlay.setVisible) {
+        shape.categoryOverlay.setVisible(showBadgesAtZoom);
+      }
+      if (shape.badgeOverlay && shape.badgeOverlay.setVisible) {
         shape.badgeOverlay.setVisible(baseBadge && showBadgesAtZoom);
       }
     });
@@ -152,13 +158,20 @@ function latLngFromAny(pt) {
     }
     setOverlayZ(shape.centerDbg, polyZ + 1);
     setOverlayZ(shape.lab, polyZ + 2);
+    if (shape.categoryOverlay) {
+      setOverlayZ(shape.categoryOverlay, polyZ + 3);
+      const zcur = (S.map && S.map.getZoom) ? S.map.getZoom() : null;
+      const showBadges = (zcur != null) && (zcur >= getRibbonBadgeMinZoom());
+      if (shape.categoryOverlay.setVisible) {
+        shape.categoryOverlay.setVisible(showBadges);
+      }
+    }
     if (shape.badgeOverlay) {
-      setOverlayZ(shape.badgeOverlay, polyZ + 3);
+      setOverlayZ(shape.badgeOverlay, polyZ + 4);
       shape.badgeHiddenByOverlap = false;
-      // Only make badge visible if zoom level is appropriate
-      const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
-      const showBadges = (zcur != null) && (zcur >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75));
-      if (typeof shape.badgeOverlay.setVisible === 'function') {
+      const zcur = (S.map && S.map.getZoom) ? S.map.getZoom() : null;
+      const showBadges = (zcur != null) && (zcur >= getRibbonBadgeMinZoom());
+      if (shape.badgeOverlay && shape.badgeOverlay.setVisible) {
         shape.badgeOverlay.setVisible(showBadges);
       }
     }
@@ -176,8 +189,8 @@ function latLngFromAny(pt) {
     if (!shape) return;
     if (shape.poly) shape.poly.setMap(null);
     if (shape.lab) {
-      if (typeof shape.lab.remove === 'function') shape.lab.remove();
-      else if (typeof shape.lab.setMap === 'function') shape.lab.setMap(null);
+      if (shape.lab.remove) shape.lab.remove();
+      else if (shape.lab.setMap) shape.lab.setMap(null);
     }
     if (shape.centerDbg) {
       if (typeof shape.centerDbg.remove === 'function') shape.centerDbg.remove();
@@ -188,10 +201,17 @@ function latLngFromAny(pt) {
     }
     if (shape.badgeOverlay) {
       try {
-        if (typeof shape.badgeOverlay.remove === 'function') shape.badgeOverlay.remove();
-        else if (typeof shape.badgeOverlay.setMap === 'function') shape.badgeOverlay.setMap(null);
+        if (shape.badgeOverlay.remove) shape.badgeOverlay.remove();
+        else if (shape.badgeOverlay.setMap) shape.badgeOverlay.setMap(null);
       } catch (e) {}
       shape.badgeOverlay = null;
+    }
+    if (shape.categoryOverlay) {
+      try {
+        if (shape.categoryOverlay.remove) shape.categoryOverlay.remove();
+        else if (shape.categoryOverlay.setMap) shape.categoryOverlay.setMap(null);
+      } catch (e) {}
+      shape.categoryOverlay = null;
     }
   }
 
@@ -205,7 +225,7 @@ function latLngFromAny(pt) {
     const booth = S.booths[id];
     if (!booth) return;
 
-    if (!S || !S.proj || typeof S.proj.getProjection !== 'function' || !S.proj.getProjection()) {
+    if (!S || !S.proj || !S.proj.getProjection || !S.proj.getProjection()) {
       if (!S.shapes) S.shapes = {};
       S.shapes[id] = { pending: true };
       setTimeout(() => draw(id), 50);
@@ -218,9 +238,7 @@ function latLngFromAny(pt) {
     const st = styleFn(booth.category || 'standard', assigned);
     const sel = (S.selected === id);
 
-    const computeCenter = (typeof MCPP.computeBoothCenter === 'function')
-      ? MCPP.computeBoothCenter
-      : (b => new google.maps.LatLng((b.center && b.center.lat) || 0, (b.center && b.center.lng) || 0));
+    const computeCenter = MCPP.computeBoothCenter || (b => new google.maps.LatLng((b.center && b.center.lat) || 0, (b.center && b.center.lng) || 0));
 
     let centerLatLng = computeCenter(booth, { asLatLng: true });
     const centerForGeom = centerLatLng && typeof centerLatLng.toJSON === 'function'
@@ -275,6 +293,7 @@ function latLngFromAny(pt) {
       badgeType: null,
       badgeHiddenByOverlap: false,
       badgeBaseVisible: true,
+      categoryOverlay: null,
       isReturnVendor: !!booth.is_return_vendor,
       isEventStaff: !!booth.is_event_staff,
       isPartnerVendor: !!booth.is_partner_vendor,
@@ -324,7 +343,7 @@ function latLngFromAny(pt) {
       shapeRecord.centerLL = centerLL;
       if (shapeRecord.lab && typeof shapeRecord.lab.setPosition === 'function') shapeRecord.lab.setPosition(centerLL);
       if (shapeRecord.centerDbg) setPos(shapeRecord.centerDbg, centerLL);
-      if (typeof MCPP.repositionLogoBadge === 'function') MCPP.repositionLogoBadge(id);
+      if (MCPP.repositionLogoBadge) MCPP.repositionLogoBadge(id);
     };
 
     const labelEl = document.createElement('div');
@@ -353,16 +372,14 @@ function latLngFromAny(pt) {
 
     const showLabels = (typeof SHOW_LABELS === 'undefined') ? true : SHOW_LABELS;
     // Try to place the booth label at a visual center if helper exists (keeps label truly centered)
-    const labelAnchor = (typeof MCPP.getVisualCenterAdjusted === 'function')
-      ? MCPP.getVisualCenterAdjusted(booth)
-      : centerLatLng;
+    const labelAnchor = MCPP.getVisualCenterAdjusted ? MCPP.getVisualCenterAdjusted(booth) : centerLatLng;
     // Label uses overlayMouseTarget pane to ensure it stays below badges in floatPane
     const labelOverlay = createDomOverlay(S.map, labelEl, labelAnchor, { zIndex: 100, pane: 'overlayMouseTarget' });
     shapeRecord.lab = labelOverlay;
     shapeRecord.labelEl = labelEl;
     
     // Determine initial label visibility based on current zoom level
-    const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
+    const zcur = (S.map && S.map.getZoom) ? S.map.getZoom() : null;
     const hideAll = zcur != null && zcur < (typeof LABEL_HIDE_ZOOM !== 'undefined' ? LABEL_HIDE_ZOOM : 19.5);
     const initialLabelVisible = showLabels && !hideAll;
     
@@ -381,9 +398,7 @@ function latLngFromAny(pt) {
     shapeRecord.updateLabelStyle = () => {};
     shapeRecord.setLabelVisible(shapeRecord.labelVisible);
 
-    const centerDbg = (typeof MCPP.ensureCenterDebugMarker === 'function')
-      ? MCPP.ensureCenterDebugMarker(id, centerLatLng)
-      : null;
+    const centerDbg = MCPP.ensureCenterDebugMarker ? MCPP.ensureCenterDebugMarker(id, centerLatLng) : null;
     shapeRecord.centerDbg = centerDbg;
 
     if (S.logoBadges && S.logoBadges[id]) {
@@ -391,6 +406,98 @@ function latLngFromAny(pt) {
       shapeRecord.badgeOverlay = badgeInfo.marker;
       shapeRecord.badgeHiddenByOverlap = badgeInfo.hiddenByOverlap === true;
       shapeRecord.badgeBaseVisible = badgeInfo.baseVisible !== false;
+    }
+
+    const presetRotForBadges = (typeof window.snapRotationToPreset === 'function')
+      ? window.snapRotationToPreset(booth.rotation_deg || 0)
+      : 0;
+    // Badge rotation: match booth except 67.5→-22.5, 90→0. (Booth 0,22.5,45,67.5,90 → Badge 0,22.5,45,-22.5,0)
+    const getBadgeRotation = (preset) => {
+      if (preset === 67.5) return -22.5;
+      if (preset === 90) return 0;
+      return preset;
+    };
+    const badgeRot = getBadgeRotation(presetRotForBadges);
+
+    // --- Category badge: top-left of booth (path[3]) at 0/22.5/45; at 67.5/90 top-right of badge at path[3] ---
+    const CAT_EMOJI = {
+      standard: '🪴',
+      collaborator: '🎨',
+      foodbeverage: '🍽️',
+      activity: '🎪',
+      misc: '✨'
+    };
+    const CAT_TITLE = {
+      standard: 'Plant Vendor',
+      collaborator: 'Craft Vendor',
+      foodbeverage: 'Food & Drink',
+      activity: 'Entertainment',
+      misc: 'Miscellaneous'
+    };
+    const categoryKey = (MCPP.normalizeCategoryKey ? MCPP.normalizeCategoryKey(booth.category || 'standard') : (booth.category || 'standard'));
+    const categoryEmoji = CAT_EMOJI[categoryKey] || CAT_EMOJI.standard;
+    const categoryTitle = CAT_TITLE[categoryKey] || CAT_TITLE.standard;
+    const catRibbonColor = (typeof CAT !== 'undefined' && CAT[categoryKey]) ? (CAT[categoryKey].s || CAT[categoryKey].f) : '#4ea186';
+
+    if (MCPP.createDomOverlay) {
+      const catWrap = document.createElement('div');
+      catWrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
+      const catEl = document.createElement('div');
+      catEl.className = 'booth-badge booth-category-badge';
+      if (badgeRot === 45) catEl.classList.add('booth-badge-rot-45');
+      else if (badgeRot === 22.5) catEl.classList.add('booth-badge-rot-22-5');
+      else if (badgeRot === -22.5) catEl.classList.add('booth-badge-rot-minus-22-5');
+      else catEl.classList.add('booth-badge-rot-0');
+      catEl.setAttribute('title', categoryTitle);
+      catEl.style.color = catRibbonColor;
+      catEl.style.position = 'absolute';
+      catEl.style.left = '0';
+      catEl.style.top = '0';
+      catEl.style.pointerEvents = 'auto';
+
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const xlinkNS = 'http://www.w3.org/1999/xlink';
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('viewBox', '0 0 32 32');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('aria-hidden', 'true');
+      const use = document.createElementNS(svgNS, 'use');
+      use.setAttributeNS(xlinkNS, 'xlink:href', '#badge-ribbon-only');
+      use.setAttribute('href', '#badge-ribbon-only');
+      svg.appendChild(use);
+      catEl.appendChild(svg);
+
+      const emojiSpan = document.createElement('span');
+      emojiSpan.className = 'booth-category-emoji';
+      emojiSpan.textContent = categoryEmoji;
+      catEl.appendChild(emojiSpan);
+
+      catWrap.appendChild(catEl);
+
+      catEl.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        S._userInteracted = true;
+        if (MCPP.select) MCPP.select(id);
+        if (S.map) {
+          const target = shapeRecord.centerLL || centerLatLng;
+          if (target) S.map.panTo(target);
+        }
+        bringShapeToFront(id);
+      });
+
+      const catMarker = MCPP.createDomOverlay(S.map, catWrap, centerLatLng, { zIndex: 300, pane: 'floatPane' });
+      if (catMarker) {
+        shapeRecord.categoryOverlay = catMarker;
+        try {
+          const zcur = (S.map && S.map.getZoom) ? S.map.getZoom() : null;
+          const showBadges = (zcur != null) && (zcur >= getRibbonBadgeMinZoom());
+          if (!showBadges) {
+            catMarker.setVisible(false);
+          }
+        } catch (e) {}
+      }
     }
 
     // --- Badge Hierarchy System ---
@@ -435,20 +542,20 @@ function latLngFromAny(pt) {
     }
     
     // Create the badge overlay if a badge type was determined
-    if (badgeType && typeof MCPP.createDomOverlay === 'function') {
+    if (badgeType && MCPP.createDomOverlay) {
       // create the wrapped element (zero-sized wrapper like logo badges)
       const wrap = document.createElement('div');
       wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
 
       const el = document.createElement('div');
       el.className = `booth-badge booth-${badgeType}-badge`;
-      // enable pointer events on the badge so hover/title works, but keep wrapper non-interactive
-      // position the element so its top-right corner will align with the overlay anchor
+      if (badgeRot === 45) el.classList.add('booth-badge-rot-45');
+      else if (badgeRot === 22.5) el.classList.add('booth-badge-rot-22-5');
+      else if (badgeRot === -22.5) el.classList.add('booth-badge-rot-minus-22-5');
+      else el.classList.add('booth-badge-rot-0');
       el.style.position = 'absolute';
       el.style.left = '0';
       el.style.top = '0';
-      // shift badge 1px left and 2px down relative to the polygon corner (net: move right 1px)
-      el.style.transform = 'translate(calc(-100% - 1px), 2px)';
       el.style.pointerEvents = 'auto';
       el.setAttribute('title', badgeTitle);
       
@@ -478,7 +585,7 @@ function latLngFromAny(pt) {
         ev.preventDefault();
         ev.stopPropagation();
         S._userInteracted = true;
-        if (typeof MCPP.select === 'function') MCPP.select(id);
+        if (MCPP.select) MCPP.select(id);
         if (S.map) {
           const target = shapeRecord.centerLL || centerLatLng;
           if (target) S.map.panTo(target);
@@ -493,9 +600,8 @@ function latLngFromAny(pt) {
         shapeRecord.badgeOverlay = marker;
         shapeRecord.badgeType = badgeType;
         try {
-          const zcur = (S.map && typeof S.map.getZoom === 'function') ? S.map.getZoom() : null;
-          // Default to hiding badges if zoom is unavailable, rather than showing them
-          const showBadges = (zcur != null) && (zcur >= (typeof LOGO_BADGE_MIN_ZOOM !== 'undefined' ? LOGO_BADGE_MIN_ZOOM : 20.75));
+          const zcur = (S.map && S.map.getZoom) ? S.map.getZoom() : null;
+          const showBadges = (zcur != null) && (zcur >= getRibbonBadgeMinZoom());
           if (!showBadges) {
             marker.setVisible(false);
           }
@@ -505,10 +611,13 @@ function latLngFromAny(pt) {
 
     poly.addListener('click', () => {
       S._userInteracted = true;
-      if (typeof MCPP.select === 'function') MCPP.select(id);
+      if (MCPP.select) MCPP.select(id);
       if (S.map) {
         const target = shapeRecord.centerLL || centerLatLng;
-        if (target) S.map.panTo(target);
+        if (target) {
+          S.map.setZoom(23); /* max zoom from map-init.js */
+          S.map.panTo(target);
+        }
       }
       bringShapeToFront(id);
     });
@@ -524,30 +633,92 @@ function latLngFromAny(pt) {
       shapeRecord.lastValidCenter = centerUse;
       shapeRecord.lastValidPath = pathUse;
       shapeRecord.bounds = computeBounds(pathUse);
-      // Reposition badge overlay to the polygon's visual top-right corner
+      // Reposition badge overlays: anchor at corners inset toward center. Per-rotation inset so badges sit in the corner for each of 0–90° presets.
+      // rect() returns path order: 0=SW, 1=SE, 2=NE (top-right), 3=NW (top-left).
+      const presetRot = (typeof window.snapRotationToPreset === 'function')
+        ? window.snapRotationToPreset(booth.rotation_deg || 0)
+        : 0;
+      const BADGE_INSET_BY_PRESET = {
+        0: 20, 22.5: 20, 45: 26, 67.5: 20, 90: 28
+      };
+      const BADGE_INSET_PX = BADGE_INSET_BY_PRESET[presetRot] != null ? BADGE_INSET_BY_PRESET[presetRot] : 20;
+      // Per-rotation: which path corner index for status badge and category badge. path: 0=SW, 1=SE, 2=NE, 3=NW.
+      // At 90° (rotated): visual top-right of polygon = local top-left (NW=3), visual bottom-right = local top-right (NE=2).
+      const CORNER_INDICES_BY_PRESET = {
+        0: { status: 2, category: 3 }, 22.5: { status: 2, category: 3 }, 45: { status: 2, category: 3 },
+        67.5: { status: 2, category: 3 }, 90: { status: 2, category: 3 }
+      };
+      const cornerIndices = CORNER_INDICES_BY_PRESET[presetRot] || CORNER_INDICES_BY_PRESET[0];
+      // Per-rotation pixel nudge so badges sit in the corner for each preset.
+      const BADGE_NUDGE_BY_PRESET = {
+        0:    { status: { dx: 0, dy: 0 }, category: { dx: 0, dy: 0 } },
+        22.5: { status: { dx: -2, dy: 1 }, category: { dx: 2, dy: 1 } },
+        45:   { status: { dx: -2, dy: 0 }, category: { dx: 2, dy: 0 } },
+        67.5: { status: { dx: -1, dy: -1 }, category: { dx: 1, dy: -1 } },
+        90:   { status: { dx: -5, dy: 3 }, category: { dx: -5, dy: -3 } }
+      };
+      const nudge = BADGE_NUDGE_BY_PRESET[presetRot] || BADGE_NUDGE_BY_PRESET[0];
+      function cornerInsetTowardCenter(projection, cornerLL, centerLL, insetPx) {
+        const centerNorm = latLngFromAny(centerLL);
+        if (!projection || !cornerLL || !centerNorm || insetPx <= 0) return cornerLL;
+        const cp = projection.fromLatLngToDivPixel(cornerLL);
+        const centerPx = projection.fromLatLngToDivPixel(centerNorm);
+        const dx = centerPx.x - cp.x;
+        const dy = centerPx.y - cp.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1e-6) return cornerLL;
+        // Cap inset so we never push the badge past ~70% toward center (avoids badges clustering at center when booth is small on screen)
+        const t = Math.min(insetPx / dist, 0.7);
+        const q = { x: cp.x + t * dx, y: cp.y + t * dy };
+        try {
+          return projection.fromDivPixelToLatLng(q);
+        } catch (e) {
+          return cornerLL;
+        }
+      }
+      function applyPixelNudge(projection, ll, nudgePx) {
+        if (!projection || !ll || !nudgePx || (nudgePx.dx === 0 && nudgePx.dy === 0)) return ll;
+        const p = projection.fromLatLngToDivPixel(ll);
+        const q = { x: p.x + (nudgePx.dx || 0), y: p.y + (nudgePx.dy || 0) };
+        try {
+          return projection.fromDivPixelToLatLng(q);
+        } catch (e) {
+          return ll;
+        }
+      }
+      const BADGE_SIZE_PX = 22;
+      const pathLen = (Array.isArray(pathUse) ? pathUse.length : (pathUse && typeof pathUse.getLength === 'function' ? pathUse.getLength() : 0));
+      const getPathPoint = (path, i) => Array.isArray(path) ? path[i] : (path && typeof path.getAt === 'function' ? path.getAt(i) : undefined);
       try {
-        if (shapeRecord.badgeOverlay && Array.isArray(pathUse) && pathUse.length && S.proj && typeof S.proj.getProjection === 'function') {
+        if (pathUse && pathLen >= 4 && S.proj && S.proj.getProjection) {
           const proj = S.proj.getProjection();
           if (proj) {
-            let best = null;
-            for (let i = 0; i < pathUse.length; i++) {
-              const pt = latLngFromAny(pathUse[i]);
-              if (!pt) continue;
-              const p = proj.fromLatLngToDivPixel(pt);
-              if (!p) continue;
-              if (!best || p.y < best.p.y || (p.y === best.p.y && p.x > best.p.x)) {
-                best = { p, ll: pt };
+            const statusCornerLL = latLngFromAny(getPathPoint(pathUse, cornerIndices.status));
+            const categoryCornerLL = latLngFromAny(getPathPoint(pathUse, cornerIndices.category));
+            // Category badge: always at path[3] (polygon top-left at 0°). 0/22.5/45: nudge down 1px; 67.5: nudge left 10px, down 6px; 90: nudge left 11px, down 2px.
+            if (categoryCornerLL && shapeRecord.categoryOverlay && shapeRecord.categoryOverlay.setPosition) {
+              if (presetRot === 0 || presetRot === 22.5 || presetRot === 45) {
+                shapeRecord.categoryOverlay.setPosition(applyPixelNudge(proj, categoryCornerLL, { dx: 0, dy: 1 }));
+              } else if (presetRot === 67.5) {
+                shapeRecord.categoryOverlay.setPosition(applyPixelNudge(proj, categoryCornerLL, { dx: -10, dy: 6 }));
+              } else if (presetRot === 90) {
+                shapeRecord.categoryOverlay.setPosition(applyPixelNudge(proj, categoryCornerLL, { dx: -11, dy: 2 }));
+              } else {
+                shapeRecord.categoryOverlay.setPosition(categoryCornerLL);
               }
             }
-            if (best && shapeRecord.badgeOverlay && typeof shapeRecord.badgeOverlay.setPosition === 'function') {
-              // move the anchor part-way toward the polygon center so the badge sits inside the polygon
-              try {
-                // Align the top-right corner of the badge to the polygon corner: use the corner pixel directly
-                const anchoredLL = proj.fromDivPixelToLatLng(best.p);
-                shapeRecord.badgeOverlay.setPosition(anchoredLL);
-              } catch (e) {
-                // fallback to exact corner if projection conversion fails
-                shapeRecord.badgeOverlay.setPosition(best.ll);
+            // Status (earned) badge: overlay at path[2] (polygon top-right at 0°). At 67.5° nudge to align with category; at 90° nudge up 10px.
+            if (statusCornerLL && shapeRecord.badgeOverlay && shapeRecord.badgeOverlay.setPosition) {
+              if (presetRot === 67.5 && categoryCornerLL) {
+                const catPx = proj.fromLatLngToDivPixel(categoryCornerLL);
+                const statusPx = proj.fromLatLngToDivPixel(statusCornerLL);
+                const catRightX = catPx.x - 10 + BADGE_SIZE_PX * Math.cos(-22.5 * Math.PI / 180);
+                const nudgeDx = catRightX - statusPx.x - 3;
+                shapeRecord.badgeOverlay.setPosition(applyPixelNudge(proj, statusCornerLL, { dx: nudgeDx, dy: -11 }));
+              } else if (presetRot === 90) {
+                shapeRecord.badgeOverlay.setPosition(applyPixelNudge(proj, statusCornerLL, { dx: 0, dy: -11 }));
+              } else {
+                shapeRecord.badgeOverlay.setPosition(statusCornerLL);
               }
             }
           }
@@ -557,6 +728,12 @@ function latLngFromAny(pt) {
     }
 
     updateFromPolygon(centerLatLng, rectPath);
+    if (S.map && typeof S.map.addListener === 'function') {
+      const onceIdle = S.map.addListener('idle', () => {
+        google.maps.event.removeListener(onceIdle);
+        if (S.shapes && S.shapes[id] === shapeRecord) updateFromPolygon(centerLatLng, rectPath);
+      });
+    }
 
     const revertToLastValid = () => {
       const lastCenter = shapeRecord.lastValidCenter || centerLatLng;
@@ -564,7 +741,7 @@ function latLngFromAny(pt) {
       poly.setPaths(lastPath);
       const literal = { lat: latNum(lastCenter), lng: lngNum(lastCenter) };
       booth.center = literal;
-      if (typeof MCPP.boothAnchorFromCenter === 'function') booth.anchor = MCPP.boothAnchorFromCenter(lastCenter, booth);
+      if (MCPP.boothAnchorFromCenter) booth.anchor = MCPP.boothAnchorFromCenter(lastCenter, booth);
       else booth.anchor = literal;
       syncCenters(lastCenter);
       updateFromPolygon(lastCenter, lastPath);
@@ -642,13 +819,13 @@ function latLngFromAny(pt) {
       const lastPath = shapeRecord.lastValidPath || computeRectPath(lastCenter);
       const literal = { lat: latNum(lastCenter), lng: lngNum(lastCenter) };
       booth.center = literal;
-      if (typeof MCPP.boothAnchorFromCenter === 'function') booth.anchor = MCPP.boothAnchorFromCenter(lastCenter, booth);
+      if (MCPP.boothAnchorFromCenter) booth.anchor = MCPP.boothAnchorFromCenter(lastCenter, booth);
       else booth.anchor = literal;
       poly.setPaths(lastPath);
       syncCenters(lastCenter);
       bringShapeToFront(id);
       updateOverlapVisibility();
-      if (typeof MCPP.save === 'function') MCPP.save(false);
+      if (MCPP.save) MCPP.save(false);
     });
 
     const updateRotationFromPoint = (pLatLng) => {
@@ -662,16 +839,16 @@ function latLngFromAny(pt) {
       const vy = P.y - C.y;
       let cw = Math.atan2(vx, -vy) * 180 / Math.PI;
       cw = (cw + 360) % 360;
-      cw = Math.round(cw / (typeof SNAP !== 'undefined' ? SNAP : 10)) * (typeof SNAP !== 'undefined' ? SNAP : 10);
-      cw = (cw + 360) % 360;
-      booth.rotation_deg = cw;
+      booth.rotation_deg = (typeof window.snapRotationToPreset === 'function')
+        ? window.snapRotationToPreset(cw)
+        : (Math.round(cw / (typeof SNAP !== 'undefined' ? SNAP : 10)) * (typeof SNAP !== 'undefined' ? SNAP : 10) + 360) % 360;
 
       const rectFn = MCPP.rect || (() => []);
       const paths = rectFn(booth.center, booth.width_feet, booth.length_feet, -booth.rotation_deg);
       poly.setPaths(paths);
       updateFromPolygon(shapeRecord.centerLL, paths);
       bringShapeToFront(id);
-      if (typeof MCPP.repositionLogoBadge === 'function') MCPP.repositionLogoBadge(id);
+      if (MCPP.repositionLogoBadge) MCPP.repositionLogoBadge(id);
     };
 
     poly.addListener('rightclick', (ev) => updateRotationFromPoint(ev.latLng));
@@ -690,7 +867,7 @@ function latLngFromAny(pt) {
       if (!centerLL) return;
       if (shape.lab && typeof shape.lab.setPosition === 'function') shape.lab.setPosition(centerLL);
       if (shape.centerDbg) setPos(shape.centerDbg, centerLL);
-      if (typeof MCPP.repositionLogoBadge === 'function') MCPP.repositionLogoBadge(id);
+      if (MCPP.repositionLogoBadge) MCPP.repositionLogoBadge(id);
     });
   }
 
