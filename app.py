@@ -16,6 +16,7 @@ app.permanent_session_lifetime = timedelta(days=7)
 GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 GOOGLE_MAPS_MAP_ID  = os.environ.get("MAP_ID", "")
 ADMIN_PIN           = os.environ.get("ADMIN_PIN", "")
+PORT                = int(os.environ.get("PORT", "5000")) if str(os.environ.get("PORT", "5000")).isdigit() else 5000
 
 # Simple JSON storage for booths/vendors (compat with legacy frontend)
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "data"))
@@ -190,7 +191,7 @@ def api_upload_logo():
         return jsonify({"ok": False, "error": f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024*1024)}MB"}), 400
     
     # Generate unique filename to avoid conflicts
-    original_ext = Path(file.filename).suffix.lower()
+    original_ext = Path(file.filename or "").suffix.lower()
     unique_filename = f"{uuid.uuid4().hex}{original_ext}"
     filepath = UPLOAD_DIR / unique_filename
     
@@ -216,4 +217,4 @@ def serve_upload(filename):
         return jsonify({"error": "Error serving file"}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host="0.0.0.0", port=PORT)

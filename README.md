@@ -51,10 +51,17 @@ export ADMIN_PIN="1234"     # set an admin PIN to enable admin features
 
 3. Start the app:
 
+**Development (Flask built-in server):**
 ```bash
 ./.venv/bin/python app.py
 # then open http://127.0.0.1:5000/ in a browser
 ```
+
+**Production (Gunicorn):**
+```bash
+./.venv/bin/gunicorn -c gunicorn.conf.py app:app
+```
+The config reads `PORT` from `.env` (default 5000). To use another port, set `PORT=8080` in `.env` or when starting.
 
 Notes: vendor data is stored in `data/vendors.json`. If you edit that file directly you can pre-seed the app with badges and vendor info.
 
