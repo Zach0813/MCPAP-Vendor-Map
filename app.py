@@ -69,7 +69,7 @@ def index():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.3"
+        cachebuster="v0.4.4"
     )
 
 
@@ -82,7 +82,7 @@ def mobile_viewer():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.3"
+        cachebuster="v0.4.4"
     )
 
 @app.route('/favicon.ico')

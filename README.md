@@ -65,6 +65,21 @@ The config reads `PORT` from `.env` (default 5000). To use another port, set `PO
 
 Notes: vendor data is stored in `data/vendors.json`. If you edit that file directly you can pre-seed the app with badges and vendor info.
 
+## Deploy to Railway
+
+The app is set up for one-click style deployment on [Railway](https://railway.app). The repo includes `railway.json` (start command), `Procfile`, and `runtime.txt` so Railway can build and run the app without extra config.
+
+1. **Create a project**: Go to [railway.app/new](https://railway.app/new), then **Deploy from GitHub repo** and select this repository.
+2. **Environment variables**: In your Railway service, open **Variables** and add:
+   - `GOOGLE_MAPS_API_KEY` — your Google Maps JavaScript API key (required for the map).
+   - `ADMIN_PIN` — PIN for admin login (e.g. `1234`).
+   - `MAP_ID` — (optional) Google Map ID if you use a custom map type.
+   - `SECRET_KEY` — (optional) Flask session secret; Railway can generate one, or set a random string.
+3. **Deploy**: Railway will detect Python, install from `requirements.txt`, and run `gunicorn -c gunicorn.conf.py app:app`. It sets `PORT` automatically.
+4. **Public URL**: In the service **Settings** → **Networking**, click **Generate Domain** to get a public URL.
+
+Vendor data is stored in the app’s filesystem (`data/vendors.json`). For persistence across redeploys, consider adding a Railway volume or external storage later.
+
 ## Admin features
 
 - Log in with the admin PIN to enable editing and saving vendor details.
