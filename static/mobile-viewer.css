@@ -325,12 +325,68 @@ body {
   pointer-events: none;
 }
 
-/* Map panel — do not set position here; .mv-panel supplies position:absolute so panel fills .mv-main and gets height */
+/* Map panel — keep .mv-panel's position:absolute so panel fills .mv-main; map and controls fill/overlay via their own absolute positioning */
 .mv-panel-map.active .mv-map {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Map controls: center + map labels — solid background like desktop .map-overlay-buttons */
+.mv-map-controls {
+  position: absolute;
+  bottom: calc(56px + var(--mv-safe-bottom, 0px));
+  left: 10px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.mv-map-controls .mv-map-ctrl {
+  pointer-events: auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--mv-border);
+  border-radius: 10px;
+  background: rgb(18, 26, 26);
+  color: var(--mv-muted);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mv-map-ctrl:hover {
+  background: rgb(24, 34, 34);
+  color: var(--mv-ink);
+}
+.mv-map-ctrl:active {
+  background: rgb(28, 40, 40);
+  border-color: var(--mv-accent-2);
+  color: var(--mv-hi);
+  box-shadow: 0 0 0 2px rgba(2, 108, 104, 0.4);
+}
+.mv-map-ctrl-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.mv-map-ctrl-labels.on {
+  border-color: var(--mv-accent-2);
+  background: rgb(8, 36, 34);
+  color: var(--mv-hi);
+}
+.mv-map-ctrl-labels.on:hover {
+  background: rgb(12, 44, 42);
+}
+.mv-map-ctrl-labels.on:active {
+  background: rgb(16, 52, 50);
+  box-shadow: 0 0 0 2px rgba(2, 108, 104, 0.5);
 }
 
 /* Booth logo badge on map — match desktop .booth-logo-badge (rounded corners, background for transparency, border) */

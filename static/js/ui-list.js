@@ -227,7 +227,13 @@
     // Removed per request — keep list rows cleaner.
     el.addEventListener('click', () => {
       select(id);
-      if (S.booths[id] && S.map) S.map.panTo(S.booths[id].center);
+      if (S.booths[id] && S.map) {
+        S.map.panTo(S.booths[id].center);
+        const idleOnce = S.map.addListener('idle', () => {
+          google.maps.event.removeListener(idleOnce);
+          S.map.setZoom(23);
+        });
+      }
     });
     return el;
   }

@@ -480,40 +480,52 @@
       }
     })();
   </script>
-  <!-- Viewer on small screen: redirect to mobile; resize to desktop width sends back. Uses matchMedia + resize fallback. -->
+  <!-- Viewer on small/medium screen: redirect to mobile (phones + tablets); desktop only for wide. Breakpoint 1024px to match mobile-viewer. -->
   <script>
     (function(){
-      var forceDesktop = window.location.search.indexOf('desktop=1') !== -1 || sessionStorage.getItem('mcpp-desktop');
-      var mobileQuery = window.matchMedia && window.matchMedia('(max-width: 767px)');
-      var isAdmin = null;
+      var MOBILE_MAX_WIDTH = 1024;
+      var mobileQuery = window.matchMedia && window.matchMedia('(max-width: ' + MOBILE_MAX_WIDTH + 'px)');
+      var isAdmin = false;
       function isMobileViewport() {
-        if (mobileQuery) return mobileQuery.matches;
-        return typeof window.innerWidth === 'number' && window.innerWidth < 768;
+        var w = typeof window.innerWidth === 'number' ? window.innerWidth : 0;
+        if (w > 0 && w <= MOBILE_MAX_WIDTH) return true;
+        var cw = document.documentElement && document.documentElement.clientWidth;
+        if (typeof cw === 'number' && cw <= MOBILE_MAX_WIDTH) return true;
+        if (window.visualViewport && typeof window.visualViewport.width === 'number' && window.visualViewport.width <= MOBILE_MAX_WIDTH) return true;
+        if (mobileQuery && mobileQuery.matches) return true;
+        return false;
       }
-      function sendViewerToMobile() {
-        if (!isMobileViewport() || isAdmin === true) return;
+      function goToMobile() {
+        if (isAdmin) return;
+        if (!isMobileViewport()) return;
         try { sessionStorage.removeItem('mcpp-desktop'); } catch(e) {}
         window.location.replace('/mobile');
       }
       if (!mobileQuery) {
-        if (typeof window.innerWidth === 'number' && window.innerWidth < 768) {
+        if (isMobileViewport()) {
           fetch('/api/who').then(function(r){ return r.json(); }).then(function(json){
-            if (json && !json.is_admin) window.location.replace('/mobile');
-          }).catch(function(){});
+            if (json && !json.is_admin) { try { sessionStorage.removeItem('mcpp-desktop'); } catch(e) {} window.location.replace('/mobile'); }
+          }).catch(function(){ window.location.replace('/mobile'); });
         }
         return;
       }
       fetch('/api/who').then(function(r){ return r.json(); }).then(function(json){
         isAdmin = !!(json && json.is_admin);
-        if (!isAdmin && !forceDesktop && isMobileViewport()) { window.location.replace('/mobile'); return; }
-      }).catch(function(){ isAdmin = false; });
-      var onChange = function(evt){ if ((evt && evt.matches) || isMobileViewport()) sendViewerToMobile(); };
-      if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', onChange);
-      else if (mobileQuery.addListener) mobileQuery.addListener(onChange);
+        goToMobile();
+      }).catch(function(){ goToMobile(); });
+      [100, 200, 350, 550, 800].forEach(function(ms){ setTimeout(goToMobile, ms); });
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(goToMobile, 50); });
+      } else {
+        setTimeout(goToMobile, 50);
+      }
+      window.addEventListener('load', function(){ setTimeout(goToMobile, 80); });
+      if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', function(){ if (isMobileViewport()) goToMobile(); });
+      else if (mobileQuery.addListener) mobileQuery.addListener(function(){ if (isMobileViewport()) goToMobile(); });
       var resizeTick;
       window.addEventListener('resize', function(){
         clearTimeout(resizeTick);
-        resizeTick = setTimeout(sendViewerToMobile, 150);
+        resizeTick = setTimeout(goToMobile, 250);
       });
     })();
   </script>

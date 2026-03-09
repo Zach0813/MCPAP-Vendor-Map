@@ -51,11 +51,11 @@
 
   const BADGE_RIBBON_MIN_ZOOM = 20.7;
 
-  var DEBUG_PULSE_RING = true;
-
-  function logPulse(msg, detail) {
-    if (!DEBUG_PULSE_RING || typeof console === "undefined" || !console.log) return;
-    console.log("[MCPP pulse]", msg, detail != null ? detail : "");
+  /** Set true to log View on Map pan timing to console (for debugging). */
+  var DEBUG_VIEW_ON_MAP_PAN = true;
+  function logViewOnMapPan(msg, detail) {
+    if (!DEBUG_VIEW_ON_MAP_PAN || typeof console === "undefined" || !console.log) return;
+    console.log("[MCPP View on Map]", msg, detail != null ? detail : "");
   }
 
   function normalizeCategoryKey(k) {
@@ -136,7 +136,8 @@
     proj: null,
     selectedId: null,
     searchQuery: "",
-    mapsApiReady: false
+    mapsApiReady: false,
+    mapLabelsOn: false
   };
 
   function latLngFromAny(pos) {
@@ -337,7 +338,6 @@
       this.svg.setAttribute("height", "100%");
       var pts = points.map(function (p) { return (p.x - minX + pad) + "," + (p.y - minY + pad); }).join(" ");
       this.poly.setAttribute("points", pts);
-      logPulse("PulseRing DOM position", { left: left, top: top, offset: offset, width: w + 2 * pad, height: h + 2 * pad });
     };
     PulsePositionerOverlay.prototype.onRemove = function () {
       if (this.wrapper && this.wrapper.parentNode) this.wrapper.parentNode.removeChild(this.wrapper);
@@ -351,7 +351,6 @@
       }
       setTimeout(function () {
         positioner.setMap(null);
-        logPulse("PulseRing DOM removed");
       }, fadeOutMs);
     }, durationMs || 2000);
   }
@@ -512,21 +511,62 @@
       body.innerHTML = "<p class=\"mv-detail-value\">No details.</p>";
     } else {
       body.innerHTML = buildDetailHtml(booth);
-      if (state.map && booth.center && Number.isFinite(Number(booth.center.lat)) && Number.isFinite(Number(booth.center.lng))) {
-        var c = booth.center;
-        state.map.setCenter(new google.maps.LatLng(Number(c.lat), Number(c.lng)));
-        state.map.setZoom(MAP_MAX_ZOOM);
-        var openIdleOnce = state.map.addListener("idle", function () {
-          google.maps.event.removeListener(openIdleOnce);
-          if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
-        });
-      }
+      // Do not center or zoom the map here. The map only pans to the booth when the user
+      // clicks "View on Map", so the pan is visible when coming from the vendor list.
     }
     sheet.classList.add("open");
     sheet.setAttribute("aria-hidden", "false");
   }
 
   var DETAIL_CLOSE_DURATION_MS = 300;
+  /** After switching to map tab, wait this long before closing the card so the map can lay out and paint. */
+  var VIEW_ON_MAP_TAB_SETTLE_MS = 180;
+  /** After close animation ends, wait this long before panning so resize from close doesn't override the pan. */
+  var VIEW_ON_MAP_PAN_AFTER_CLOSE_MS = 60;
+  /** Extra pause with map visible before pan starts so the user sees the current view, then the pan. */
+  var VIEW_ON_MAP_DELAY_BEFORE_PAN_MS = 100;
+  /** Duration of the pan animation so the move to the booth is visible (ms). */
+  var VIEW_ON_MAP_PAN_DURATION_MS = 400;
+
+  /**
+   * Pan the map from its current center to target over durationMs so the movement is visible.
+   * @param {google.maps.Map} map
+   * @param {google.maps.LatLng} target
+   * @param {number} durationMs
+   * @param {function} onComplete called when the pan finishes
+   */
+  function slowPanTo(map, target, durationMs, onComplete) {
+    if (!map || !target || durationMs <= 0) {
+      if (onComplete) onComplete();
+      return;
+    }
+    var start = map.getCenter();
+    if (!start) {
+      map.panTo(target);
+      if (onComplete) onComplete();
+      return;
+    }
+    var startLat = start.lat(), startLng = start.lng();
+    var endLat = target.lat(), endLng = target.lng();
+    var startTime = null;
+    function step(timestamp) {
+      if (startTime == null) startTime = timestamp;
+      var elapsed = timestamp - startTime;
+      var t = Math.min(elapsed / durationMs, 1);
+      // ease-out cubic so the pan slows at the end
+      var eased = 1 - Math.pow(1 - t, 3);
+      var lat = startLat + (endLat - startLat) * eased;
+      var lng = startLng + (endLng - startLng) * eased;
+      map.setCenter({ lat: lat, lng: lng });
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        map.setCenter(target);
+        if (onComplete) onComplete();
+      }
+    }
+    requestAnimationFrame(step);
+  }
 
   function closeDetail() {
     state.selectedId = null;
@@ -922,13 +962,52 @@
     state._logoZoomListener = state.map.addListener("zoom_changed", updateMobileLogoBadgeSizes);
     updateMobileLogoBadgeSizes();
     if (hasBounds && !bounds.isEmpty()) {
-      state.map.fitBounds(bounds, { top: 40, bottom: 40, left: 20, right: 20 });
+      var padding = { top: 40, bottom: 40, left: 20, right: 20 };
+      state.map.fitBounds(bounds, padding);
+      var fitIdle = state.map.addListener("idle", function () {
+        google.maps.event.removeListener(fitIdle);
+        state.map.setZoom(20);
+      });
     }
   }
 
   function triggerMapResize() {
     if (!state.map || !window.google || !google.maps.event) return;
     google.maps.event.trigger(state.map, "resize");
+  }
+
+  var CENTER_MAP_ZOOM = 20;
+
+  function centerMapOnBooths() {
+    if (!state.map || !state.vendors || !window.google || !google.maps.LatLngBounds) return;
+    var bounds = new google.maps.LatLngBounds();
+    var hasBounds = false;
+    Object.entries(state.vendors).forEach(function (entry) {
+      var path = boothRectPath(entry[1]);
+      if (path.length < 3) return;
+      path.forEach(function (ll) { bounds.extend(ll); hasBounds = true; });
+    });
+    if (!hasBounds || bounds.isEmpty()) return;
+    var z = state.map.getZoom();
+    if (z != null && Math.round(z) === CENTER_MAP_ZOOM) {
+      state.map.panTo(bounds.getCenter());
+      if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
+      return;
+    }
+    var padding = { top: 40, bottom: 40, left: 20, right: 20 };
+    state.map.fitBounds(bounds, padding);
+    var idleOnce = state.map.addListener("idle", function () {
+      google.maps.event.removeListener(idleOnce);
+      state.map.setZoom(CENTER_MAP_ZOOM);
+      if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
+    });
+  }
+
+  function updateMapLabelsButton() {
+    var btn = document.getElementById("mvMapLabels");
+    if (!btn) return;
+    var on = state.map && state.map.getMapTypeId() === "hybrid";
+    if (on) btn.classList.add("on"); else btn.classList.remove("on");
   }
 
   function ensureMap() {
@@ -952,10 +1031,11 @@
     };
     state.map = new google.maps.Map(mapEl, opts);
     drawMapPolygons();
+    updateMapLabelsButton();
     requestAnimationFrame(function () {
       triggerMapResize();
       setTimeout(triggerMapResize, 100);
-      setTimeout(triggerMapResize, 400);
+      setTimeout(triggerMapResize, 350);
     });
     return state.map;
   }
@@ -1019,18 +1099,10 @@
     var PULSE_RING_DURATION_MS = 2000;
 
     function runBoothPulseRing(boothId) {
-      logPulse("runBoothPulseRing called", { boothId: boothId });
       var booth = boothId && state.vendors ? state.vendors[boothId] : null;
-      if (!state.map || !booth) {
-        logPulse("runBoothPulseRing bail", { hasMap: !!state.map, hasBooth: !!booth });
-        return;
-      }
+      if (!state.map || !booth) return;
       var path = boothRectPath(booth);
-      if (path.length < 3) {
-        logPulse("runBoothPulseRing bail path", { pathLength: path.length });
-        return;
-      }
-      logPulse("runBoothPulseRing creating DOM pulse", { pathLength: path.length, durationMs: PULSE_RING_DURATION_MS });
+      if (path.length < 3) return;
       createPulseRingDom(state.map, path, PULSE_RING_DURATION_MS);
     }
 
@@ -1038,18 +1110,33 @@
       viewOnMapBtn.addEventListener("click", function () {
         var id = state.selectedId;
         var booth = id && state.vendors ? state.vendors[id] : null;
-        closeDetail();
-        switchToMapTab();
-        if (state.map && booth && booth.center && Number.isFinite(Number(booth.center.lat)) && Number.isFinite(Number(booth.center.lng))) {
+        var centerLl = null;
+        if (booth && booth.center && Number.isFinite(Number(booth.center.lat)) && Number.isFinite(Number(booth.center.lng))) {
           var c = booth.center;
-          var centerLl = new google.maps.LatLng(Number(c.lat), Number(c.lng));
-          state.map.setCenter(centerLl);
-          var ringIdle = state.map.addListener("idle", function () {
-            google.maps.event.removeListener(ringIdle);
-            if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
-            setTimeout(function () { runBoothPulseRing(id); }, 350);
-          });
+          centerLl = new google.maps.LatLng(Number(c.lat), Number(c.lng));
         }
+        logViewOnMapPan("clicked", { boothId: id, hasCenter: !!centerLl, tabSettleMs: VIEW_ON_MAP_TAB_SETTLE_MS, closeMs: DETAIL_CLOSE_DURATION_MS, panAfterCloseMs: VIEW_ON_MAP_PAN_AFTER_CLOSE_MS });
+        switchToMapTab();
+        logViewOnMapPan("tab switched to map (card still open)");
+        // Let the map panel lay out and paint before closing the card (avoids pan before map is visible).
+        setTimeout(function () {
+          logViewOnMapPan("tab settle done, closing detail", { elapsedMs: VIEW_ON_MAP_TAB_SETTLE_MS });
+          if (state.map) triggerMapResize();
+          closeDetail();
+          // Pan after close animation + buffer + extra delay so user sees the map before it moves.
+          var delayBeforePan = DETAIL_CLOSE_DURATION_MS + VIEW_ON_MAP_PAN_AFTER_CLOSE_MS + VIEW_ON_MAP_DELAY_BEFORE_PAN_MS;
+          setTimeout(function () {
+            logViewOnMapPan("delay before pan done, starting slow pan", { elapsedMs: delayBeforePan, panDurationMs: VIEW_ON_MAP_PAN_DURATION_MS });
+            if (state.map && centerLl) {
+              slowPanTo(state.map, centerLl, VIEW_ON_MAP_PAN_DURATION_MS, function () {
+                logViewOnMapPan("slow pan complete (zoom to max, badges + pulse next)");
+                state.map.setZoom(MAP_MAX_ZOOM);
+                if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
+                setTimeout(function () { runBoothPulseRing(id); }, 350);
+              });
+            }
+          }, delayBeforePan);
+        }, VIEW_ON_MAP_TAB_SETTLE_MS);
       });
     }
   }
@@ -1087,10 +1174,31 @@
     }
   };
 
+  function initMapControls() {
+    var centerBtn = document.getElementById("mvMapCenter");
+    var labelsBtn = document.getElementById("mvMapLabels");
+    if (centerBtn) {
+      centerBtn.addEventListener("click", function () {
+        centerMapOnBooths();
+      });
+    }
+    if (labelsBtn) {
+      labelsBtn.addEventListener("click", function () {
+        if (!state.map) return;
+        var type = state.map.getMapTypeId();
+        state.map.setMapTypeId(type === "satellite" ? "hybrid" : "satellite");
+        state.mapLabelsOn = (type === "satellite");
+        updateMapLabelsButton();
+      });
+      updateMapLabelsButton();
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initTabs();
     initDetailSheet();
     initSearch();
+    initMapControls();
     loadVendors();
   });
 })();

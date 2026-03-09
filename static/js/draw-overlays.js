@@ -615,8 +615,11 @@ function latLngFromAny(pt) {
       if (S.map) {
         const target = shapeRecord.centerLL || centerLatLng;
         if (target) {
-          S.map.setZoom(23); /* max zoom from map-init.js */
           S.map.panTo(target);
+          const idleOnce = S.map.addListener('idle', () => {
+            google.maps.event.removeListener(idleOnce);
+            S.map.setZoom(23); /* max zoom from map-init.js */
+          });
         }
       }
       bringShapeToFront(id);

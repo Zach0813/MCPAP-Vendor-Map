@@ -70,6 +70,22 @@
 
     <section id="mvMapPanel" class="mv-panel mv-panel-map active" role="tabpanel">
       <div id="mvMap" class="mv-map"></div>
+      <div class="mv-map-controls" role="group" aria-label="Map options">
+        <button type="button" class="mv-map-ctrl" id="mvMapCenter" aria-label="Center map on all booths" title="Center map on booths">
+          <svg class="mv-map-ctrl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <line x1="12" y1="2" x2="12" y2="6"/>
+            <line x1="12" y1="18" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="6" y2="12"/>
+            <line x1="18" y1="12" x2="22" y2="12"/>
+          </svg>
+        </button>
+        <button type="button" class="mv-map-ctrl mv-map-ctrl-labels" id="mvMapLabels" aria-label="Toggle map labels" title="Map labels">
+          <svg class="mv-map-ctrl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h12M4 17h10"/>
+          </svg>
+        </button>
+      </div>
     </section>
   </main>
 
@@ -108,22 +124,34 @@
       }
     })();
   </script>
-  <!-- Desktop viewport: redirect to main app; resize to mobile width sends here from main app -->
+  <!-- Desktop viewport: redirect to main app. Use 1025px to match index.html (mobile <= 1024, desktop > 1024). -->
   <script>
     (function(){
-      var desktopQuery = window.matchMedia && window.matchMedia('(min-width: 768px)');
-      function isDesktopViewport() { return desktopQuery && desktopQuery.matches; }
-      function sendToDesktop() {
-        if (isDesktopViewport()) window.location.replace('/');
+      var DESKTOP_MIN_WIDTH = 1025;
+      var desktopQuery = window.matchMedia && window.matchMedia('(min-width: ' + DESKTOP_MIN_WIDTH + 'px)');
+      function isDesktopViewport() {
+        if (desktopQuery && desktopQuery.matches) return true;
+        return typeof window.innerWidth === 'number' && window.innerWidth >= DESKTOP_MIN_WIDTH;
+      }
+      function maybeRedirectToDesktop() {
+        if (!isDesktopViewport()) return;
+        window.location.replace('/');
       }
       if (!desktopQuery) {
-        if (typeof window.innerWidth === 'number' && window.innerWidth >= 768) window.location.replace('/');
+        if (typeof window.innerWidth === 'number' && window.innerWidth >= DESKTOP_MIN_WIDTH) window.location.replace('/');
         return;
       }
-      if (isDesktopViewport()) { window.location.replace('/'); return; }
-      var onChange = function(){ if (isDesktopViewport()) sendToDesktop(); };
-      if (desktopQuery.addListener) desktopQuery.addListener(onChange);
-      else if (desktopQuery.addEventListener) desktopQuery.addEventListener('change', onChange);
+      maybeRedirectToDesktop();
+      // Recheck after a short delay so emulator/viewport has correct size on refresh
+      setTimeout(maybeRedirectToDesktop, 120);
+      var onChange = function() { if (isDesktopViewport()) maybeRedirectToDesktop(); };
+      if (desktopQuery.addEventListener) desktopQuery.addEventListener('change', onChange);
+      else if (desktopQuery.addListener) desktopQuery.addListener(onChange);
+      var resizeTick;
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTick);
+        resizeTick = setTimeout(maybeRedirectToDesktop, 150);
+      });
     })();
   </script>
   <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMobileMap&loading=async&v=quarterly"></script>
