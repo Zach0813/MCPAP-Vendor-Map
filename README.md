@@ -75,8 +75,10 @@ The app is set up for one-click style deployment on [Railway](https://railway.ap
    - `ADMIN_PIN` — PIN for admin login (e.g. `1234`).
    - `MAP_ID` — (optional) Google Map ID if you use a custom map type.
    - `SECRET_KEY` — (optional) Flask session secret; Railway can generate one, or set a random string.
-3. **Deploy**: Railway will detect Python, install from `requirements.txt`, and run `gunicorn -c gunicorn.conf.py app:app`. It sets `PORT` automatically.
+3. **Deploy**: Railway will detect Python, install from `requirements.txt`, and run the start command in `railway.json` (Gunicorn bound to `0.0.0.0:$PORT`). Railway sets `PORT` automatically.
 4. **Public URL**: In the service **Settings** → **Networking**, click **Generate Domain** to get a public URL.
+
+**If you see "Application failed to respond"**: Ensure **Settings** → **Networking** → **Target port** matches the port your app listens on (Railway sets `PORT`; our start command uses it). You can also hit `https://your-app.up.railway.app/health` to confirm the app is up.
 
 Vendor data is stored in the app’s filesystem (`data/vendors.json`). For persistence across redeploys, consider adding a Railway volume or external storage later.
 

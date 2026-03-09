@@ -61,6 +61,13 @@ def save_booths(obj):
     except Exception:
         return False
 
+
+@app.route("/health")
+def health():
+    """Lightweight health check for Railway and load balancers."""
+    return "", 200
+
+
 @app.route("/")
 def index():
     defaults = {"center": {"lat": 45.783611, "lng": -108.542778}, "zoom": 20}
