@@ -12,6 +12,11 @@
 .topbar{display:flex;align-items:center;height:52px;padding:0 12px;background:linear-gradient(180deg,#0d1616,#0a1212);border-bottom:1px solid var(--border)}
 .brand{font-weight:700;color:var(--muted)} .spacer{flex:1} .role{margin-right:8px}
 #roleBadge{background:rgba(2,108,104,.2);border:1px solid var(--accent-2);padding:4px 8px;border-radius:999px;color:var(--muted)}
+.day-filter-wrap{display:flex;align-items:center;margin-right:12px;gap:6px}
+.day-filter-label{color:var(--muted);font-size:13px;font-weight:500}
+.day-filter-select{background:var(--card);border:1px solid var(--border);color:var(--ink);padding:4px 8px;border-radius:8px;font-size:13px;cursor:pointer;min-width:0}
+.day-filter-select:hover{border-color:var(--accent-2)}
+.day-filter-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(10,168,160,.2)}
 .profile{position:relative}
 .menu{position:absolute;right:0;top:32px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;flex-direction:column;min-width:160px}
 .menu.hidden{display:none}
@@ -1579,6 +1584,52 @@ input, textarea, button, select {
   background: rgba(255, 255, 255, 0.03);
   border-radius: var(--field-radius);
   overflow: hidden;
+}
+
+/* Center-crop preview: fixed size, overflow hidden so scaled image shows crop */
+.logo-crop-preview-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 280px;
+  height: 280px;
+  max-width: 100%;
+  background: #1a1a1a;
+  border-radius: var(--field-radius);
+  overflow: hidden;
+  position: relative;
+}
+
+.logo-crop-preview-wrap img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  transform-origin: center center;
+  pointer-events: none;
+}
+
+.logo-crop-slider-wrap {
+  width: 100%;
+  max-width: 280px;
+  margin-top: 10px;
+}
+
+.logo-crop-slider-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--field-font-size);
+  color: var(--muted);
+}
+
+.logo-crop-slider {
+  width: 100%;
+  max-width: 280px;
+  height: 8px;
+  margin: 0;
+  accent-color: var(--hi);
 }
 
 #logoModalPreview {

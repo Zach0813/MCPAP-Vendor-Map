@@ -83,12 +83,6 @@
 
       const onZoomChanged = () => {
         clampTilt();
-        if (S.map) {
-          var z = S.map.getZoom();
-          if (typeof console !== 'undefined' && console.log) {
-            console.log('[MCPP] Zoom:', z != null ? Math.round(z * 100) / 100 : '—');
-          }
-        }
         if (MCPP.updateLabelVisibility) MCPP.updateLabelVisibility();
         if (MCPP.updateLabelLayoutForZoom) MCPP.updateLabelLayoutForZoom();
       };

@@ -78,7 +78,27 @@ The app is set up for one-click style deployment on [Railway](https://railway.ap
 3. **Deploy**: Railway will detect Python, install from `requirements.txt`, and run the start command in `railway.json` (Gunicorn bound to `0.0.0.0:$PORT`). Railway sets `PORT` automatically.
 4. **Public URL**: In the service **Settings** → **Networking**, click **Generate Domain** to get a public URL.
 
-**If you see "Application failed to respond"**: Ensure **Settings** → **Networking** → **Target port** matches the port your app listens on (Railway sets `PORT`; our start command uses it). You can also hit `https://your-app.up.railway.app/health` to confirm the app is up.
+**If you see "Application failed to respond"** (but deploy logs show "Listening at: http://0.0.0.0:8080"): Railway's proxy is forwarding to the wrong port. Set **Target port** to **8080** so it matches the app:
+1. Open your **service** in the Railway dashboard.
+2. Go to **Settings** → **Networking** (or **Variables** tab, then the **Networking** section).
+3. Under **Public Networking** / your generated domain, find **Target port** (or **Port**).
+4. Set it to **8080** and save. Redeploy if needed.
+
+After that, `https://your-app.up.railway.app/` and `/health` should load.
+
+### Custom domain and HTTPS
+
+Railway gives your app **HTTPS automatically** for both Railway domains (`*.up.railway.app`) and custom domains. No extra config in the app.
+
+**Use a custom domain (e.g. `map.yourdomain.com`):**
+
+1. **In Railway** — Open your **service** → **Settings** → **Networking** (Public Networking). Click **+ Custom Domain**, enter your domain (e.g. `map.yourdomain.com`). Railway shows a **CNAME target** (e.g. `xxxxx.up.railway.app`); copy it. When adding the domain, set **Target port** to **8080** (same port your app uses).
+
+2. **In your DNS provider** (Cloudflare, Namecheap, GoDaddy, etc.) — Add a **CNAME** record: **Name/host** = your subdomain (e.g. `map` for `map.yourdomain.com`, or `@` for root if your provider allows it); **Value/target** = the CNAME Railway gave you. Save; DNS can take a few minutes up to 48 hours.
+
+3. **HTTPS** — Once DNS is correct, Railway issues a **free Let's Encrypt certificate** and renews it automatically. Your site is served over **https** at your custom domain.
+
+**Root domain:** Many DNS hosts don't allow CNAME on the root. Use a subdomain (e.g. `map.yourdomain.com`) or a provider with CNAME flattening/ALIAS (e.g. Cloudflare, DNSimple). **Cloudflare users:** Set SSL/TLS to **Full** (not Full Strict). **Browser shows "Not secure"?** Always open the site with `https://` (not `http://`); the app redirects HTTP→HTTPS when behind Railway. If using Cloudflare, set SSL to **Full**. Certificate issuance can take up to an hour after DNS is correct.
 
 Vendor data is stored in the app’s filesystem (`data/vendors.json`). For persistence across redeploys, consider adding a Railway volume or external storage later.
 

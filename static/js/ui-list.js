@@ -260,8 +260,9 @@
     const q = (els.listSearch && els.listSearch.value || '').toLowerCase();
     els.boothList.innerHTML = '';
 
+    const boothsForList = (typeof MCPP.getBoothsForCurrentDay === 'function') ? MCPP.getBoothsForCurrentDay() : S.booths;
     const grouped = {};
-    Object.entries(S.booths)
+    Object.entries(boothsForList)
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
       .forEach(([id, booth]) => {
         const formattedId = MCPP.formatBoothId ? MCPP.formatBoothId(id) : id;
@@ -387,9 +388,6 @@
 
       // Capture saved state only when opening a different booth (not when refreshing same booth after Unassign)
       const willCapture = MCPP.boothEdit && typeof MCPP.boothEdit.capture === 'function' && prevSelected !== id;
-      if (MCPP.boothEditDebug) {
-        console.log('[boothEdit] select', { id, prevSelected, willCapture, boothBiz: (booth && booth.biz) || '', boothVendor: (booth && booth.vendor_name) || '' });
-      }
       try {
         if (willCapture) {
           MCPP.boothEdit.capture(id);
@@ -715,18 +713,28 @@
 
   function redraw() {
       Object.values(S.shapes).forEach((shape) => {
-        if (shape.poly) shape.poly.setMap(null);
-        if (shape.lab) shape.lab.map = null;
-        if (shape.centerDbg) {
-          if ('map' in shape.centerDbg) shape.centerDbg.map = null;
-          else if (shape.centerDbg.setMap) shape.centerDbg.setMap(null);
+        if (typeof MCPP.removeShapeRecord === 'function') MCPP.removeShapeRecord(shape);
+        else {
+          if (shape.poly) shape.poly.setMap(null);
+          if (shape.lab) { if (shape.lab.remove) shape.lab.remove(); else if (shape.lab.setMap) shape.lab.setMap(null); }
+          if (shape.centerDbg) { if (typeof shape.centerDbg.remove === 'function') shape.centerDbg.remove(); else if (shape.centerDbg.setMap) shape.centerDbg.setMap(null); }
+          if (shape.badgeOverlay) { try { if (shape.badgeOverlay.remove) shape.badgeOverlay.remove(); else if (shape.badgeOverlay.setMap) shape.badgeOverlay.setMap(null); } catch (e) {} }
+          if (shape.categoryOverlay) { try { if (shape.categoryOverlay.remove) shape.categoryOverlay.remove(); else if (shape.categoryOverlay.setMap) shape.categoryOverlay.setMap(null); } catch (e) {} }
         }
       });
     S.shapes = {};
 
+    const visibleBooths = (typeof MCPP.getBoothsForCurrentDay === 'function') ? MCPP.getBoothsForCurrentDay() : S.booths;
+    const visibleIds = new Set(Object.keys(visibleBooths));
+    if (typeof MCPP.destroyLogoBadge === 'function') {
+      Object.keys(S.booths || {}).forEach((id) => {
+        if (!visibleIds.has(id)) MCPP.destroyLogoBadge(id);
+      });
+    }
+
     const bounds = new google.maps.LatLngBounds();
     const rect = MCPP.rect || (() => []);
-    Object.entries(S.booths).forEach(([id, booth]) => {
+    Object.entries(visibleBooths).forEach(([id, booth]) => {
       if (typeof MCPP.draw === 'function') MCPP.draw(id);
       rect((MCPP.boothCenterLatLng ? MCPP.boothCenterLatLng(booth).toJSON?.() || MCPP.boothCenterLatLng(booth) : booth.center), booth.width_feet, booth.length_feet, -(booth.rotation_deg || 0))
         .forEach((ll) => bounds.extend(ll));

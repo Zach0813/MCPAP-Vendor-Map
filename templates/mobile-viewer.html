@@ -58,6 +58,12 @@
 
   <header class="mv-header">
     <div class="mv-brand">🌱 Magic City Plant‑A‑Palooza</div>
+    <div class="mv-spacer"></div>
+    <div class="mv-day-filter-wrap">
+      <label for="mvMapDaySelect" class="mv-day-filter-label">Event Date</label>
+      <select id="mvMapDaySelect" class="mv-day-filter-select" aria-label="View event date on map" title="Show booths scheduled for this date">
+      </select>
+    </div>
   </header>
 
   <main class="mv-main">
@@ -154,6 +160,7 @@
       });
     })();
   </script>
+  <script src="{{ url_for('static', filename='js/scheduled-days.js') }}?v={{ cachebuster }}"></script>
   <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMobileMap&loading=async&v=quarterly"></script>
   <script src="{{ url_for('static', filename='js/mobile-viewer.js') }}?v={{ cachebuster }}"></script>
 </body>

@@ -1,6 +1,6 @@
 import os
 from datetime import timedelta
-from flask import Flask, render_template, request, jsonify, session, send_from_directory
+from flask import Flask, render_template, request, jsonify, session, send_from_directory, redirect
 from dotenv import load_dotenv
 import json
 from pathlib import Path
@@ -62,6 +62,14 @@ def save_booths(obj):
         return False
 
 
+@app.before_request
+def redirect_http_to_https():
+    """When behind a proxy (e.g. Railway), redirect HTTP to HTTPS so the site is always secure."""
+    if request.headers.get("X-Forwarded-Proto") == "http":
+        url = request.url.replace("http://", "https://", 1)
+        return redirect(url, code=301)
+
+
 @app.route("/health")
 def health():
     """Lightweight health check for Railway and load balancers."""
@@ -76,7 +84,7 @@ def index():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.4"
+        cachebuster="v0.4.5"
     )
 
 
@@ -89,7 +97,7 @@ def mobile_viewer():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.4"
+        cachebuster="v0.4.5"
     )
 
 @app.route('/favicon.ico')

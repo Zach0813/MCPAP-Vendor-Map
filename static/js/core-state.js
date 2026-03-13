@@ -3,30 +3,23 @@
 
   const MCPP = window.MCPP = window.MCPP || {};
 
-  const SCHEDULED_DAY_OPTIONS = [
-    { value: 'saturday', short: 'Sat', full: 'Saturday', date: 'Saturday - May 16, 2025' },
-    { value: 'sunday', short: 'Sun', full: 'Sunday', date: 'Sunday - May 17, 2025' }
+  const _days = window.__MCPP_SCHEDULED_DAYS__ || {};
+  const SCHEDULED_DAY_OPTIONS = _days.options || [
+    { value: 'saturday', short: 'Sat', full: 'Saturday', date: 'Saturday, May 16, 2026' },
+    { value: 'sunday', short: 'Sun', full: 'Sunday', date: 'Sunday, May 17, 2026' }
   ];
-  const SCHEDULED_DAY_ORDER = SCHEDULED_DAY_OPTIONS.map((opt) => opt.value);
-  const SCHEDULED_DAY_MAP = SCHEDULED_DAY_OPTIONS.reduce((acc, opt) => {
-    acc[opt.value] = opt;
-    return acc;
-  }, {});
-
-  function normalizeScheduledDays(list) {
+  const SCHEDULED_DAY_ORDER = _days.order || SCHEDULED_DAY_OPTIONS.map((opt) => opt.value);
+  const normalizeScheduledDays = _days.normalize || function (list) {
     if (!Array.isArray(list)) return [];
     const seen = new Set();
     const out = [];
     list.forEach((item) => {
       const key = String(item || '').toLowerCase();
-      if (SCHEDULED_DAY_ORDER.includes(key) && !seen.has(key)) {
-        seen.add(key);
-        out.push(key);
-      }
+      if (SCHEDULED_DAY_ORDER.includes(key) && !seen.has(key)) { seen.add(key); out.push(key); }
     });
-    out.sort((a, b) => SCHEDULED_DAY_ORDER.indexOf(a) - SCHEDULED_DAY_ORDER.indexOf(b));
-    return out;
-  }
+    return out.sort((a, b) => SCHEDULED_DAY_ORDER.indexOf(a) - SCHEDULED_DAY_ORDER.indexOf(b));
+  };
+  const SCHEDULED_DAY_MAP = SCHEDULED_DAY_OPTIONS.reduce((acc, opt) => { acc[opt.value] = opt; return acc; }, {});
 
   function formatScheduledDays(list, { short = false } = {}) {
     const normalized = normalizeScheduledDays(list);
@@ -56,10 +49,23 @@
   MCPP.formatScheduledDays = formatScheduledDays;
   MCPP.formatReturnVendor = formatReturnVendor;
 
+  /** Booths visible for the currently selected map day (single-day view only). */
+  function getBoothsForCurrentDay() {
+    const day = (S && S.selectedMapDay) || (SCHEDULED_DAY_ORDER && SCHEDULED_DAY_ORDER[0]) || null;
+    if (!day || !S || !S.booths) return {};
+    const filtered = {};
+    Object.entries(S.booths).forEach(([id, booth]) => {
+      const days = normalizeScheduledDays(booth.scheduled_days || []);
+      if (days.includes(day)) filtered[id] = booth;
+    });
+    return filtered;
+  }
+  MCPP.getBoothsForCurrentDay = getBoothsForCurrentDay;
+
   const $ = (id) => document.getElementById(id);
 const els = {
     profileBtn: $('profileBtn'), profileMenu: $('profileMenu'), loginBtn: $('loginBtn'), logoutBtn: $('logoutBtn'),
-    roleBadge: $('roleBadge'), adminBar: $('adminBar'),
+    roleBadge: $('roleBadge'), adminBar: $('adminBar'), mapDaySelect: $('mapDaySelect'),
     fit: $('fit'), toggleType: $('toggleType'),
     defWidth: $('defWidth'), defLength: $('defLength'), defCat: $('defCat'),
     addBooth: $('addBooth'), duplicateBooth: $('duplicateBooth'),
@@ -86,6 +92,7 @@ const els = {
     assign: $('assign'), unassign: $('unassign'), deleteBooth: $('deleteBooth'),
     addLogoBtn: $('addLogoBtn'), removeLogoBtn: $('removeLogoBtn'), logoModal: $('logoModal'), logoModalClose: $('logoModalClose'),
     logoModalSave: $('logoModalSave'), logoModalCancel: $('logoModalCancel'), logoModalClear: $('logoModalClear'), logoModalPreview: $('logoModalPreview'),
+    logoCropSlider: $('logoCropSlider'), logoCropSliderValue: $('logoCropSliderValue'), logoCropSliderLabel: $('logoCropSliderLabel'), logoCropSliderWrap: $('logoCropSliderWrap'),
     logoUploadLabel: $('logoUploadLabel'), logoUploadFake: $('logoUploadFake')
   };
 
@@ -126,10 +133,40 @@ const els = {
     saveTimer: null, didInitialViewport: false,
     draggingRot: false, draggingBoothId: null, rotMoveListener: null,
     proj: null,
-    boothEditLockedById: {}
+    boothEditLockedById: {},
+    selectedMapDay: 'saturday'
   };
 
   window.S = S;
+
+  function initMapDayFilter() {
+    if (!els.mapDaySelect) return;
+    const opts = MCPP.SCHEDULED_DAY_OPTIONS || [];
+    if (opts.length) {
+      els.mapDaySelect.innerHTML = '';
+      opts.forEach((opt) => {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.date || opt.full || opt.short || opt.value;
+        els.mapDaySelect.appendChild(o);
+      });
+    }
+    S.selectedMapDay = els.mapDaySelect.value || (opts[0] && opts[0].value) || 'saturday';
+    if (els.mapDaySelect.value !== S.selectedMapDay) els.mapDaySelect.value = S.selectedMapDay;
+    els.mapDaySelect.addEventListener('change', () => {
+      S.selectedMapDay = els.mapDaySelect.value || (opts[0] && opts[0].value) || 'saturday';
+      if (S.selected && getBoothsForCurrentDay && !getBoothsForCurrentDay()[S.selected]) {
+        if (MCPP.clearSelection) MCPP.clearSelection();
+      }
+      if (MCPP.redraw) MCPP.redraw();
+    });
+  }
+  initMapDayFilter();
+
+  // Viewer address field: prevent focus on click so it doesn't highlight (match other read-only viewer fields)
+  if (els.businessAddressViewer) {
+    els.businessAddressViewer.addEventListener('mousedown', (e) => e.preventDefault());
+  }
 
   function updateScheduledDaysCheckboxStates() {
     // Update checkbox visibility based on admin status

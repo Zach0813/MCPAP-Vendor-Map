@@ -159,7 +159,7 @@ function latLngFromAny(pt) {
     setOverlayZ(shape.centerDbg, polyZ + 1);
     setOverlayZ(shape.lab, polyZ + 2);
     if (shape.categoryOverlay) {
-      setOverlayZ(shape.categoryOverlay, polyZ + 3);
+      setOverlayZ(shape.categoryOverlay, polyZ + 500);
       const zcur = (S.map && S.map.getZoom) ? S.map.getZoom() : null;
       const showBadges = (zcur != null) && (zcur >= getRibbonBadgeMinZoom());
       if (shape.categoryOverlay.setVisible) {
@@ -167,7 +167,7 @@ function latLngFromAny(pt) {
       }
     }
     if (shape.badgeOverlay) {
-      setOverlayZ(shape.badgeOverlay, polyZ + 4);
+      setOverlayZ(shape.badgeOverlay, polyZ + 501);
       shape.badgeHiddenByOverlap = false;
       const zcur = (S.map && S.map.getZoom) ? S.map.getZoom() : null;
       const showBadges = (zcur != null) && (zcur >= getRibbonBadgeMinZoom());
@@ -487,7 +487,7 @@ function latLngFromAny(pt) {
         bringShapeToFront(id);
       });
 
-      const catMarker = MCPP.createDomOverlay(S.map, catWrap, centerLatLng, { zIndex: 300, pane: 'floatPane' });
+      const catMarker = MCPP.createDomOverlay(S.map, catWrap, centerLatLng, { zIndex: 500, pane: 'floatPane' });
       if (catMarker) {
         shapeRecord.categoryOverlay = catMarker;
         try {
@@ -594,8 +594,8 @@ function latLngFromAny(pt) {
       });
 
       // position initially at center; we'll reposition once we compute corners
-      // Status badge should be above both label (100) and logo badge (200)
-      const marker = MCPP.createDomOverlay(S.map, wrap, centerLatLng, { zIndex: 300, pane: 'floatPane' });
+      // Status badge should be above label (100) and logo badge (200)
+      const marker = MCPP.createDomOverlay(S.map, wrap, centerLatLng, { zIndex: 501, pane: 'floatPane' });
       if (marker) {
         shapeRecord.badgeOverlay = marker;
         shapeRecord.badgeType = badgeType;
@@ -878,7 +878,8 @@ function latLngFromAny(pt) {
     draw,
     syncOverlayCenters,
     createDomOverlay,
-    updateOverlapVisibility
+    updateOverlapVisibility,
+    removeShapeRecord
   });
 
   MCPP.createDomOverlay = createDomOverlay;

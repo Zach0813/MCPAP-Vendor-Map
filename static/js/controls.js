@@ -179,11 +179,16 @@
     }
     if (els.logoModalPreview) {
       if (previewUrl === LOGO_BADGE_PLACEHOLDER) {
+        els.logoModalPreview.removeAttribute('crossOrigin');
         els.logoModalPreview.src = '';
         els.logoModalPreview.style.display = 'none';
+        if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'none';
       } else {
+        els.logoModalPreview.crossOrigin = 'anonymous';
         els.logoModalPreview.src = previewUrl;
         els.logoModalPreview.style.display = 'block';
+        if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'block';
+        if (els.logoModalPreview.complete && els.logoModalPreview.naturalWidth) applyLogoCropPreview();
       }
     }
   }
@@ -209,21 +214,30 @@
       alert('Please select a booth first');
       return;
     }
+    revokeLogoObjectUrl();
     const currentUrl = (S.booths[S.selected].logo_url) || '';
     lastUploadedLogoUrl = '';
     if (els.logoUrl) els.logoUrl.value = currentUrl;
     if (els.logoUpload) els.logoUpload.value = '';
     setFileInputLabel('Select file – no file chosen', false);
+    setLogoCropSlider(0);
     updateLogoPreview(currentUrl);
     els.logoModal.classList.remove('hidden');
-    // Ensure modal is visible
     els.logoModal.style.display = 'flex';
   }
 
   function closeLogoModal() {
     if (!els.logoModal) return;
+    revokeLogoObjectUrl();
     els.logoModal.classList.add('hidden');
     els.logoModal.style.display = 'none';
+  }
+
+  // When modal preview image loads, apply current crop slider to preview
+  if (els.logoModalPreview) {
+    els.logoModalPreview.addEventListener('load', function () {
+      applyLogoCropPreview();
+    });
   }
 
   if (els.addLogoBtn) {
@@ -290,8 +304,52 @@
     });
   }
 
-  // Track URL from upload so we don't put it in the URL field (stays blank when file uploaded)
+  // Track URL from upload; object URL for file so we can revoke
   let lastUploadedLogoUrl = '';
+  let logoObjectUrl = null;
+  let logoCropAmount = 0; // 0–100: 0 = full image, 100 = zoom to center
+
+  function revokeLogoObjectUrl() {
+    if (logoObjectUrl) {
+      try { URL.revokeObjectURL(logoObjectUrl); } catch (e) {}
+      logoObjectUrl = null;
+    }
+  }
+
+  function setLogoCropSlider(value) {
+    logoCropAmount = Math.max(0, Math.min(100, Number(value) || 0));
+    if (els.logoCropSlider) els.logoCropSlider.value = logoCropAmount;
+    if (els.logoCropSliderValue) els.logoCropSliderValue.textContent = Math.round(logoCropAmount);
+    applyLogoCropPreview();
+  }
+
+  function applyLogoCropPreview() {
+    var img = els.logoModalPreview;
+    if (!img || !img.src || img.src === LOGO_BADGE_PLACEHOLDER) return;
+    var pct = logoCropAmount / 100;
+    var scale = pct >= 0.999 ? 10 : 1 / (1 - 0.9 * pct);
+    img.style.transform = 'scale(' + scale + ')';
+  }
+
+  function getCenterCropCanvas(img, cropPct, outSize) {
+    if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+    var w = img.naturalWidth;
+    var h = img.naturalHeight;
+    var side = Math.min(w, h) * (1 - 0.9 * (cropPct / 100));
+    if (side < 1) side = 1;
+    var cx = w / 2;
+    var cy = h / 2;
+    var sx = cx - side / 2;
+    var sy = cy - side / 2;
+    var size = outSize || 512;
+    var canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+    return canvas;
+  }
 
   function setFileInputLabel(text, hasFile) {
     if (els.logoUploadLabel) els.logoUploadLabel.textContent = text || 'Select file – no file chosen';
@@ -304,7 +362,9 @@
   // Clear logo fields in modal (wrong file/link entered)
   if (els.logoModalClear) {
     els.logoModalClear.addEventListener('click', () => {
+      revokeLogoObjectUrl();
       lastUploadedLogoUrl = '';
+      setLogoCropSlider(0);
       if (els.logoUrl) els.logoUrl.value = '';
       if (els.logoUpload) els.logoUpload.value = '';
       setFileInputLabel('Select file – no file chosen', false);
@@ -312,13 +372,40 @@
     });
   }
 
-  // Save logo from modal (use uploaded URL if set, else URL field)
+  if (els.logoCropSlider) {
+    els.logoCropSlider.addEventListener('input', function () {
+      setLogoCropSlider(this.value);
+    });
+  }
+
+  // Save logo from modal (center-crop with slider if image loaded, else use URL)
   if (els.logoModalSave) {
     els.logoModalSave.addEventListener('click', async () => {
       if (!S.selected || !S.booths[S.selected]) return;
-      const url = (lastUploadedLogoUrl || (els.logoUrl && els.logoUrl.value || '').trim());
+      let url = (lastUploadedLogoUrl || (els.logoUrl && els.logoUrl.value || '').trim());
+      var img = els.logoModalPreview;
+      if (img && img.src && img.src !== LOGO_BADGE_PLACEHOLDER && img.naturalWidth) {
+        try {
+          var canvas = getCenterCropCanvas(img, logoCropAmount, 512);
+          if (canvas) {
+            var blob = await new Promise(function (resolve) {
+              canvas.toBlob(resolve, 'image/png', 0.92);
+            });
+            if (blob) {
+              var formData = new FormData();
+              formData.append('file', blob, 'logo.png');
+              var response = await fetch('/api/upload-logo', { method: 'POST', body: formData });
+              var result = await response.json();
+              if (result.ok && result.url) url = result.url;
+            }
+          }
+        } catch (e) {
+          console.error('Crop/upload error:', e);
+        }
+        revokeLogoObjectUrl();
+      }
+
       S.booths[S.selected].logo_url = url;
-      // Keep main form in sync so Assign/Save doesn't overwrite with blank
       if (els.logoUrl) els.logoUrl.value = url;
       updateLogoPreview(url);
       updateRemoveLogoButton();
@@ -326,27 +413,20 @@
       if (MCPP.save) await MCPP.save(false);
       boothEdit.capture(S.selected);
       closeLogoModal();
-      // Refresh logo badges on map so the new logo appears immediately
       if (MCPP.postViewportSync) MCPP.postViewportSync();
       if (showToast) showToast('Logo updated', 2000, els.logoModalSave);
     });
   }
 
-  // Handle logo file upload (auto-upload on file select; URL field stays blank)
+  // Handle logo file select: show image in crop UI (upload happens on Save)
   if (els.logoUpload) {
-    els.logoUpload.addEventListener('change', async () => {
+    els.logoUpload.addEventListener('change', () => {
       const fileInput = els.logoUpload;
       if (!fileInput.files || !fileInput.files.length) {
         setFileInputLabel('Select file – no file chosen', false);
         return;
       }
-
       const file = fileInput.files[0];
-      setFileInputLabel(file.name, true);
-      // Upload given → clear URL so only one source is used
-      if (els.logoUrl) els.logoUrl.value = '';
-      lastUploadedLogoUrl = '';
-
       const maxSize = 100 * 1024 * 1024;
       if (file.size > maxSize) {
         setFileInputLabel('Select file – no file chosen', false);
@@ -354,32 +434,16 @@
         alert(`File is too large. Maximum size is 100MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
         return;
       }
-
-      if (els.logoUploadLabel) els.logoUploadLabel.textContent = 'Uploading…';
-
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await fetch('/api/upload-logo', { method: 'POST', body: formData });
-        const result = await response.json();
-
-        if (result.ok && result.url) {
-          lastUploadedLogoUrl = result.url;
-          if (els.logoUrl) els.logoUrl.value = ''; // keep URL field blank when file uploaded
-          updateLogoPreview(result.url);
-          updateRemoveLogoButton();
-          setFileInputLabel(file.name, true);
-          if (showToast) showToast('Image uploaded successfully', 2000);
-        } else {
-          setFileInputLabel('Select file – no file chosen', false);
-          fileInput.value = '';
-          alert(result.error || 'Upload failed');
-        }
-      } catch (error) {
-        console.error('Upload error:', error);
-        setFileInputLabel('Select file – no file chosen', false);
-        fileInput.value = '';
-        alert('Upload failed: ' + (error.message || 'Unknown error'));
+      setFileInputLabel(file.name, true);
+      if (els.logoUrl) els.logoUrl.value = '';
+      lastUploadedLogoUrl = '';
+      if (logoObjectUrl) try { URL.revokeObjectURL(logoObjectUrl); } catch (e) {}
+      logoObjectUrl = URL.createObjectURL(file);
+      if (els.logoModalPreview) {
+        els.logoModalPreview.removeAttribute('crossOrigin');
+        els.logoModalPreview.src = logoObjectUrl;
+        els.logoModalPreview.style.display = 'block';
+        if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'block';
       }
     });
   }
@@ -878,6 +942,10 @@
   {
     const initBusinessAddressAutocomplete = () => {
       if (!els.businessAddress) return;
+      // Places Autocomplete requires an HTMLInputElement (not textarea)
+      if (Object.prototype.toString.call(els.businessAddress) !== '[object HTMLInputElement]') {
+        return;
+      }
       if (!window.google || !google.maps || !google.maps.places || !google.maps.places.Autocomplete) {
         return;
       }
@@ -912,10 +980,10 @@
             }
           }
           
-          // Format as two lines: "Street\nCity, State ZIP"
+          // Format as single line for input (API requires HTMLInputElement)
           const line1 = street.trim();
           const line2 = [city, state, zip].filter(Boolean).join(' ').replace(/\s+/g, ' ').replace(/(\w+)\s+(\w{2})\s+/, '$1, $2 ');
-          const formattedAddress = [line1, line2].filter(Boolean).join('\n');
+          const formattedAddress = [line1, line2].filter(Boolean).join(', ');
           
           els.businessAddress.value = formattedAddress || place.formatted_address;
           // Don't write into booth data until admin clicks Save.
@@ -927,7 +995,6 @@
         }
       });
       
-      console.log('Business Address Autocomplete initialized');
     };
 
     // Try to initialize immediately if API is ready

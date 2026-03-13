@@ -51,11 +51,35 @@
 
   const BADGE_RIBBON_MIN_ZOOM = 20.7;
 
-  /** Set true to log View on Map pan timing to console (for debugging). */
-  var DEBUG_VIEW_ON_MAP_PAN = true;
-  function logViewOnMapPan(msg, detail) {
-    if (!DEBUG_VIEW_ON_MAP_PAN || typeof console === "undefined" || !console.log) return;
-    console.log("[MCPP View on Map]", msg, detail != null ? detail : "");
+  var _days = window.__MCPP_SCHEDULED_DAYS__ || {};
+  var SCHEDULED_DAY_OPTIONS = _days.options || [
+    { value: "saturday", short: "Sat", full: "Saturday", date: "Saturday, May 16, 2026" },
+    { value: "sunday", short: "Sun", full: "Sunday", date: "Sunday, May 17, 2026" }
+  ];
+  var SCHEDULED_DAY_ORDER = _days.order || SCHEDULED_DAY_OPTIONS.map(function (o) { return o.value; });
+  var normalizeScheduledDays = _days.normalize || function (list) {
+    if (!Array.isArray(list)) return [];
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var key = String(list[i] || "").toLowerCase();
+      if (SCHEDULED_DAY_ORDER.indexOf(key) !== -1 && !seen[key]) { seen[key] = true; out.push(key); }
+    }
+    return out.sort(function (a, b) { return SCHEDULED_DAY_ORDER.indexOf(a) - SCHEDULED_DAY_ORDER.indexOf(b); });
+  };
+
+  /** Vendors visible for the selected map day (single day only). */
+  function getVisibleVendors() {
+    var day = state.selectedMapDay || SCHEDULED_DAY_ORDER[0] || "saturday";
+    if (!state.vendors) return {};
+    var filtered = {};
+    Object.keys(state.vendors).forEach(function (id) {
+      var booth = state.vendors[id];
+      if (!booth) return;
+      var days = normalizeScheduledDays(booth.scheduled_days || []);
+      if (days.indexOf(day) !== -1) filtered[id] = booth;
+    });
+    return filtered;
   }
 
   function normalizeCategoryKey(k) {
@@ -137,7 +161,8 @@
     selectedId: null,
     searchQuery: "",
     mapsApiReady: false,
-    mapLabelsOn: false
+    mapLabelsOn: false,
+    selectedMapDay: "saturday"
   };
 
   function latLngFromAny(pos) {
@@ -400,7 +425,7 @@
     if (!listEl) return;
     var q = (state.searchQuery || "").toLowerCase().trim();
     var grouped = {};
-    Object.entries(state.vendors).forEach(function (entry) {
+    Object.entries(getVisibleVendors()).forEach(function (entry) {
       var id = entry[0];
       var booth = entry[1];
       if (q) {
@@ -645,7 +670,7 @@
       html += '</div></div></div>';
     }
     if (days.length) {
-      var dayToDate = { friday: 'Friday, May 15, 2025', saturday: 'Saturday, May 16, 2025', sunday: 'Sunday, May 17, 2025' };
+      var dayToDate = { friday: 'Friday, May 15, 2026', saturday: 'Saturday, May 16, 2026', sunday: 'Sunday, May 17, 2026' };
       html += '<div class="mv-detail-section mv-detail-section-days"><div class="mv-detail-section-title">Scheduled Days</div><div class="mv-detail-schedule">';
       days.forEach(function(d) {
         var label = dayToDate[d] || d;
@@ -717,7 +742,8 @@
     state.map.setCenter(center);
     const bounds = new google.maps.LatLngBounds();
     let hasBounds = false;
-    Object.entries(state.vendors).forEach(([id, booth]) => {
+    const visibleVendors = getVisibleVendors();
+    Object.entries(visibleVendors).forEach(([id, booth]) => {
       const path = boothRectPath(booth);
       if (path.length < 3) return;
       path.forEach((ll) => { bounds.extend(ll); hasBounds = true; });
@@ -737,7 +763,7 @@
       poly.addListener("click", () => openDetail(id));
       state.polygons[id] = poly;
     });
-    Object.entries(state.vendors).forEach(([id, booth]) => {
+    Object.entries(visibleVendors).forEach(([id, booth]) => {
       const logoUrl = (booth.logo_url || "").trim();
       if (!logoUrl) return;
       const c = booth.center || {};
@@ -766,14 +792,14 @@
       img.src = logoUrl;
       el.appendChild(img);
       wrap.appendChild(el);
-      const marker = createDomOverlay(state.map, wrap, anchor, { zIndex: 200, pane: "floatPane" });
+      const marker = createDomOverlay(state.map, wrap, anchor, { zIndex: 200, pane: "floatPane" }); // below ribbon badges (500/501)
       if (marker) {
         const show = (zoom >= LOGO_BADGE_MIN_ZOOM);
         marker.setVisible(show);
         state.logoOverlays[id] = { remove: marker.remove, setVisible: marker.setVisible, el: el, booth: booth };
       }
     });
-    Object.entries(state.vendors).forEach(function (entry) {
+    Object.entries(visibleVendors).forEach(function (entry) {
       const id = entry[0];
       const booth = entry[1];
       if ((booth.logo_url || "").trim()) return;
@@ -810,7 +836,7 @@
         state.labelOverlays[id] = { remove: labelOverlay.remove, setVisible: labelOverlay.setVisible, el: labelEl };
       }
     });
-    Object.entries(state.vendors).forEach(function (entry) {
+    Object.entries(visibleVendors).forEach(function (entry) {
       var id = entry[0];
       var booth = entry[1];
       var path = boothRectPath(booth);
@@ -853,7 +879,7 @@
       catWrap.appendChild(catEl);
       var catNudgeRight = 23;
       var catNudgePx = (presetRot === 67.5) ? { dx: -10 + catNudgeRight, dy: 5 } : (presetRot === 90) ? { dx: -11 + catNudgeRight, dy: 1 } : (presetRot !== 0 && presetRot !== 22.5 && presetRot !== 45) ? { dx: catNudgeRight, dy: -1 } : { dx: catNudgeRight, dy: 0 };
-      var catMarker = createBadgePositionOverlay(state.map, catWrap, path, 3, catNudgePx, { zIndex: 300, pane: "floatPane" });
+      var catMarker = createBadgePositionOverlay(state.map, catWrap, path, 3, catNudgePx, { zIndex: 500, pane: "floatPane" });
       if (!catMarker) return;
       var showBadgesNow = (state.map.getZoom() || 0) >= BADGE_RIBBON_MIN_ZOOM;
       catMarker.setVisible(showBadgesNow);
@@ -901,7 +927,7 @@
           if (presetRot === 90) return { dx: 0, dy: -11 };
           return { dx: 0, dy: 0 };
         };
-        var statusMarker = createBadgePositionOverlay(state.map, wrap, path, 2, statusGetNudge, { zIndex: 300, pane: "floatPane" });
+        var statusMarker = createBadgePositionOverlay(state.map, wrap, path, 2, statusGetNudge, { zIndex: 501, pane: "floatPane" });
         if (statusMarker) {
           state.badgeOverlays[id].status = statusMarker;
           statusMarker.setVisible(showBadgesNow);
@@ -979,10 +1005,11 @@
   var CENTER_MAP_ZOOM = 20;
 
   function centerMapOnBooths() {
-    if (!state.map || !state.vendors || !window.google || !google.maps.LatLngBounds) return;
+    if (!state.map || !window.google || !google.maps.LatLngBounds) return;
+    var visible = getVisibleVendors();
     var bounds = new google.maps.LatLngBounds();
     var hasBounds = false;
-    Object.entries(state.vendors).forEach(function (entry) {
+    Object.entries(visible).forEach(function (entry) {
       var path = boothRectPath(entry[1]);
       if (path.length < 3) return;
       path.forEach(function (ll) { bounds.extend(ll); hasBounds = true; });
@@ -1115,21 +1142,16 @@
           var c = booth.center;
           centerLl = new google.maps.LatLng(Number(c.lat), Number(c.lng));
         }
-        logViewOnMapPan("clicked", { boothId: id, hasCenter: !!centerLl, tabSettleMs: VIEW_ON_MAP_TAB_SETTLE_MS, closeMs: DETAIL_CLOSE_DURATION_MS, panAfterCloseMs: VIEW_ON_MAP_PAN_AFTER_CLOSE_MS });
         switchToMapTab();
-        logViewOnMapPan("tab switched to map (card still open)");
         // Let the map panel lay out and paint before closing the card (avoids pan before map is visible).
         setTimeout(function () {
-          logViewOnMapPan("tab settle done, closing detail", { elapsedMs: VIEW_ON_MAP_TAB_SETTLE_MS });
           if (state.map) triggerMapResize();
           closeDetail();
           // Pan after close animation + buffer + extra delay so user sees the map before it moves.
           var delayBeforePan = DETAIL_CLOSE_DURATION_MS + VIEW_ON_MAP_PAN_AFTER_CLOSE_MS + VIEW_ON_MAP_DELAY_BEFORE_PAN_MS;
           setTimeout(function () {
-            logViewOnMapPan("delay before pan done, starting slow pan", { elapsedMs: delayBeforePan, panDurationMs: VIEW_ON_MAP_PAN_DURATION_MS });
             if (state.map && centerLl) {
               slowPanTo(state.map, centerLl, VIEW_ON_MAP_PAN_DURATION_MS, function () {
-                logViewOnMapPan("slow pan complete (zoom to max, badges + pulse next)");
                 state.map.setZoom(MAP_MAX_ZOOM);
                 if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
                 setTimeout(function () { runBoothPulseRing(id); }, 350);
@@ -1194,11 +1216,34 @@
     }
   }
 
+  function initDayFilter() {
+    var sel = document.getElementById("mvMapDaySelect");
+    if (!sel) return;
+    sel.innerHTML = "";
+    SCHEDULED_DAY_OPTIONS.forEach(function (opt) {
+      var o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.date || opt.full || opt.value;
+      sel.appendChild(o);
+    });
+    state.selectedMapDay = sel.value || SCHEDULED_DAY_ORDER[0] || "saturday";
+    if (sel.value !== state.selectedMapDay) sel.value = state.selectedMapDay;
+    sel.addEventListener("change", function () {
+      state.selectedMapDay = sel.value || SCHEDULED_DAY_ORDER[0] || "saturday";
+      if (state.selectedId && !getVisibleVendors()[state.selectedId]) {
+        closeDetail();
+      }
+      renderList();
+      if (state.map) drawMapPolygons();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initTabs();
     initDetailSheet();
     initSearch();
     initMapControls();
+    initDayFilter();
     loadVendors();
   });
 })();

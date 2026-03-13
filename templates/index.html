@@ -74,6 +74,11 @@
   <header class="topbar">
     <div class="brand">🌱 Magic City Plant‑A‑Palooza</div>
     <div class="spacer"></div>
+    <div class="day-filter-wrap">
+      <label for="mapDaySelect" class="day-filter-label">Event Date</label>
+      <select id="mapDaySelect" class="day-filter-select" aria-label="View event date on map" title="Show booths scheduled for this date">
+      </select>
+    </div>
     <div class="role"><span id="roleBadge">Viewer</span></div>
     <div class="profile">
       <button id="profileBtn" class="ghost">⋯</button>
@@ -218,13 +223,13 @@
                   </label>
 
                   <label class="grow admin-only">Business Address
-                    <textarea id="businessAddress" rows="2" placeholder="123 Main St&#10;City, State ZIP"></textarea>
+                    <input id="businessAddress" type="text" placeholder="Street, City, State ZIP" autocomplete="off">
                   </label>
 
                   <div class="viewer-only" id="businessAddressViewerWrap" style="display:none;">
                     <label class="grow">Business Address
                       <div style="display:flex;align-items:flex-start;gap:8px;">
-                        <textarea id="businessAddressViewer" rows="2" readonly style="flex:1;cursor:default;resize:none;" placeholder="Not provided"></textarea>
+                        <textarea id="businessAddressViewer" rows="2" readonly tabindex="-1" style="flex:1;cursor:default;resize:none;" placeholder="Not provided" aria-readonly="true"></textarea>
                         <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;margin-top:8px;">
                           <!-- viewer-only clickable map pin icon shown when an address is present -->
                           <a id="businessAddressPin" class="viewer-only contact-chain hidden" aria-hidden="true" title="Navigate to address" href="#" style="text-decoration:none;">
@@ -441,9 +446,13 @@
       <div class="modal-body">
         <div class="modal-preview-box modal-preview-top">
           <div class="modal-preview-label">Preview</div>
-          <div class="modal-preview-inner">
+          <div class="logo-crop-preview-wrap">
             <img id="logoModalPreview" alt="Logo preview">
           </div>
+          <div class="logo-crop-slider-wrap" id="logoCropSliderWrap" style="display:none;">
+          <label class="logo-crop-slider-label" id="logoCropSliderLabel">Crop to center: <span id="logoCropSliderValue">0</span>%</label>
+          <input type="range" id="logoCropSlider" class="logo-crop-slider" min="0" max="100" value="0" aria-label="Crop to center">
+        </div>
         </div>
         <label class="grow">Upload Image <span class="modal-upload-note">(Max 100MB, any image format)</span></label>
         <div class="modal-upload-row">
@@ -535,7 +544,8 @@
   <!-- Google Maps API -->
   <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMCPPMap&loading=async&v=quarterly&libraries=marker,places"></script>
   
-  <!-- JS Modules -->
+  <!-- JS Modules (scheduled-days shared by desktop and mobile) -->
+  <script src="{{ url_for('static', filename='js/scheduled-days.js') }}?v={{ cachebuster }}"></script>
   <script src="{{ url_for('static', filename='js/core-state.js') }}?v={{ cachebuster }}"></script>
   <script src="{{ url_for('static', filename='js/utils-geo.js') }}?v={{ cachebuster }}"></script>
   <script src="{{ url_for('static', filename='js/booth-centers.js') }}?v={{ cachebuster }}"></script>

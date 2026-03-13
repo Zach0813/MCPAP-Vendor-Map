@@ -234,15 +234,20 @@
     }
     if (!S.logoBadges) S.logoBadges = {};
 
+    const visibleBooths = (typeof MCPP.getBoothsForCurrentDay === 'function') ? MCPP.getBoothsForCurrentDay() : (S.booths || {});
+    Object.keys(S.logoBadges || {}).forEach((id) => {
+      if (!visibleBooths[id]) destroyLogoBadge(id);
+    });
+
     const z = S.map.getZoom();
     const hideAll    = z < (typeof LABEL_HIDE_ZOOM !== 'undefined' ? LABEL_HIDE_ZOOM : 19.5);   // < 19.5: no labels, no badges
     const showBadges = z >= getMinZoom();       // logos (pictures) at 19.7+
     const showRibbonBadges = z >= getRibbonBadgeMinZoom();  // category/status ribbons at 20.7+
     const midBand    = !hideAll && !showBadges;  // 19.5 <= z < 19.7: labels only
 
-    if (S.booths) {
-      for (const id in S.booths) {
-        const b = S.booths[id];
+    if (visibleBooths) {
+      for (const id in visibleBooths) {
+        const b = visibleBooths[id];
         if (!b) continue;
         const hasLogo = !!(b.logo_url && b.logo_url.trim());
 
@@ -407,7 +412,8 @@
   Object.assign(MCPP, {
     repositionLogoBadge,
     updateAllLogoBadges,
-    setBadgeVisible
+    setBadgeVisible,
+    destroyLogoBadge
   });
 // #endregion MCPP: Vendor Logo Badges (overlay logos on booth centers)
 })();

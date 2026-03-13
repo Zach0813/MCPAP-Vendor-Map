@@ -81,6 +81,46 @@ body {
   font-size: 0.95rem;
 }
 
+.mv-spacer {
+  flex: 1;
+}
+
+.mv-day-filter-wrap {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+  gap: 6px;
+}
+
+.mv-day-filter-label {
+  color: var(--mv-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+  min-width: 4.5em;
+}
+
+.mv-day-filter-select {
+  background: var(--mv-card);
+  border: 1px solid var(--mv-border);
+  color: var(--mv-ink);
+  padding: 4px 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  min-width: 0;
+  max-width: 160px;
+}
+
+.mv-day-filter-select:hover {
+  border-color: var(--mv-accent-2);
+}
+
+.mv-day-filter-select:focus {
+  outline: none;
+  border-color: var(--mv-accent);
+}
+
 /* Main content: list OR map fills the screen (only one visible) */
 .mv-main {
   flex: 1;
