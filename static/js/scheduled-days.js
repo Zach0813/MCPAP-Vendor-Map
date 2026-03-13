@@ -6,8 +6,8 @@
   "use strict";
 
   var SCHEDULED_DAY_OPTIONS = [
-    { value: "saturday", short: "Sat", full: "Saturday", date: "Saturday, May 16, 2026" },
-    { value: "sunday", short: "Sun", full: "Sunday", date: "Sunday, May 17, 2026" }
+    { value: "saturday", short: "Sat", full: "Saturday", date: "Saturday, May 16, 2026", dateShort: "5/16/26" },
+    { value: "sunday", short: "Sun", full: "Sunday", date: "Sunday, May 17, 2026", dateShort: "5/17/26" }
   ];
   var SCHEDULED_DAY_ORDER = SCHEDULED_DAY_OPTIONS.map(function (o) { return o.value; });
 

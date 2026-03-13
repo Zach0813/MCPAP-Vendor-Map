@@ -18,13 +18,17 @@ GOOGLE_MAPS_MAP_ID  = os.environ.get("MAP_ID", "")
 ADMIN_PIN           = os.environ.get("ADMIN_PIN", "")
 PORT                = int(os.environ.get("PORT", "5000")) if str(os.environ.get("PORT", "5000")).isdigit() else 5000
 
-# Simple JSON storage for booths/vendors (compat with legacy frontend)
+# Simple JSON storage for booths/vendors (compat with legacy frontend).
+# On Railway, set DATA_DIR to a volume mount path (e.g. /data) so data survives redeploys.
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 VENDORS_JSON = DATA_DIR / "vendors.json"
 
-# Image upload directory
-UPLOAD_DIR = Path(__file__).parent / "static" / "uploads"
+# Image upload directory. When DATA_DIR is set (e.g. Railway volume), store uploads there too.
+if os.environ.get("DATA_DIR"):
+    UPLOAD_DIR = DATA_DIR / "uploads"
+else:
+    UPLOAD_DIR = Path(__file__).parent / "static" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB
 
@@ -84,7 +88,7 @@ def index():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.5"
+        cachebuster="v0.4.6"
     )
 
 
@@ -97,7 +101,7 @@ def mobile_viewer():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.5"
+        cachebuster="v0.4.6"
     )
 
 @app.route('/favicon.ico')

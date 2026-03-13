@@ -100,7 +100,15 @@ Railway gives your app **HTTPS automatically** for both Railway domains (`*.up.r
 
 **Root domain:** Many DNS hosts don't allow CNAME on the root. Use a subdomain (e.g. `map.yourdomain.com`) or a provider with CNAME flattening/ALIAS (e.g. Cloudflare, DNSimple). **Cloudflare users:** Set SSL/TLS to **Full** (not Full Strict). **Browser shows "Not secure"?** Always open the site with `https://` (not `http://`); the app redirects HTTP→HTTPS when behind Railway. If using Cloudflare, set SSL to **Full**. Certificate issuance can take up to an hour after DNS is correct.
 
-Vendor data is stored in the app’s filesystem (`data/vendors.json`). For persistence across redeploys, consider adding a Railway volume or external storage later.
+Vendor data is stored in the app’s filesystem (`data/vendors.json`). For persistence across redeploys, use a Railway Volume and set `DATA_DIR` (see below).
+
+**How to add a Railway Volume so data persists:**
+
+1. In your Railway project, open the service that runs this app.
+2. Go to **Settings** → **Volumes**. Click **Add Volume**.
+3. Set the **Mount Path** to `/data` (or another path you prefer).
+4. In **Variables**, add: `DATA_DIR=/data`
+5. Redeploy. The app stores `vendors.json` and uploaded logos under `/data`, so they survive redeploys. If you had data before adding the volume, re-add it once (or copy it into the volume); after that, redeploys keep your data.
 
 ## Admin features
 
