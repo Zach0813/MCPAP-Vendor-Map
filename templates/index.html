@@ -452,6 +452,7 @@
           <div class="logo-crop-slider-wrap" id="logoCropSliderWrap" style="display:none;">
           <label class="logo-crop-slider-label" id="logoCropSliderLabel">Crop to center: <span id="logoCropSliderValue">0</span>%</label>
           <input type="range" id="logoCropSlider" class="logo-crop-slider" min="0" max="100" value="0" aria-label="Crop to center">
+          <button type="button" id="logoCropDebugBtn" class="ghost" style="margin-top:6px;font-size:11px;">Show crop region on image</button>
         </div>
         </div>
         <label class="grow">Upload Image <span class="modal-upload-note">(Max 100MB, any image format)</span></label>
@@ -465,6 +466,9 @@
         <label class="grow">Logo / Picture URL
           <input id="logoUrl" type="url" placeholder="https://...">
         </label>
+        <button id="logoImportFromUrl" type="button" class="ghost" style="margin-top:6px;font-size:12px;align-self:flex-start;">
+          Import URL for cropping
+        </button>
       </div>
       <div class="modal-footer">
         <button id="logoModalClear" type="button" class="warn">Clear</button>

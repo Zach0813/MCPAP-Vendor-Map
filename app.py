@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from werkzeug.utils import secure_filename
 import uuid
+import requests
 
 load_dotenv()
 
@@ -88,7 +89,7 @@ def index():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.6"
+        cachebuster="v0.4.7"
     )
 
 
@@ -101,7 +102,7 @@ def mobile_viewer():
         google_maps_api_key=GOOGLE_MAPS_API_KEY,
         map_id=GOOGLE_MAPS_MAP_ID,
         defaults=defaults,
-        cachebuster="v0.4.6"
+        cachebuster="v0.4.7"
     )
 
 @app.route('/favicon.ico')
@@ -221,6 +222,74 @@ def api_upload_logo():
         return jsonify({"ok": True, "url": url})
     except Exception as e:
         return jsonify({"ok": False, "error": f"Upload failed: {str(e)}"}), 500
+
+
+@app.route("/api/import-logo-from-url", methods=["POST"])
+def api_import_logo_from_url():
+    """Download an image from a URL, store it as an uploaded logo, and return the internal URL.
+
+    This is used to convert external logo URLs into first-party uploads so they can be cropped.
+    """
+    if not session.get("is_admin"):
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
+
+    data = request.get_json(silent=True) or {}
+    raw_url = (data.get("url") or "").strip()
+    if not raw_url:
+        return jsonify({"ok": False, "error": "No URL provided"}), 400
+
+    # Basic safety: only allow http/https
+    if not (raw_url.startswith("http://") or raw_url.startswith("https://")):
+        return jsonify({"ok": False, "error": "Invalid URL. Must start with http:// or https://"}), 400
+
+    try:
+        resp = requests.get(raw_url, stream=True, timeout=8)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Download failed: {e}"}), 400
+
+    if resp.status_code != 200:
+        return jsonify({"ok": False, "error": f"Download failed with status {resp.status_code}"}), 400
+
+    content_type = (resp.headers.get("Content-Type") or "").lower()
+    if not content_type.startswith("image/"):
+        return jsonify({"ok": False, "error": "URL does not point to an image"}), 400
+
+    # Infer extension from content-type if possible
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/gif": ".gif",
+        "image/webp": ".webp",
+        "image/bmp": ".bmp",
+        "image/svg+xml": ".svg",
+        "image/tiff": ".tiff",
+    }
+    original_ext = ext_map.get(content_type.split(";")[0].strip(), "")
+    if original_ext and original_ext.lower() not in ALLOWED_EXTENSIONS:
+        return jsonify({"ok": False, "error": "Image type not allowed"}), 400
+
+    unique_filename = f"{uuid.uuid4().hex}{original_ext or '.png'}"
+    filepath = UPLOAD_DIR / unique_filename
+
+    # Stream download to disk with size limit
+    bytes_written = 0
+    try:
+        with filepath.open("wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if not chunk:
+                    continue
+                bytes_written += len(chunk)
+                if bytes_written > MAX_UPLOAD_SIZE:
+                    filepath.unlink(missing_ok=True)
+                    return jsonify({"ok": False, "error": f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024*1024)}MB"}), 400
+                f.write(chunk)
+    except Exception as e:
+        filepath.unlink(missing_ok=True)
+        return jsonify({"ok": False, "error": f"Saving image failed: {e}"}), 500
+
+    url = f"/static/uploads/{unique_filename}"
+    return jsonify({"ok": True, "url": url})
 
 @app.route("/static/uploads/<filename>")
 def serve_upload(filename):

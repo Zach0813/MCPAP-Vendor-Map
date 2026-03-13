@@ -92,7 +92,8 @@ const els = {
     assign: $('assign'), unassign: $('unassign'), deleteBooth: $('deleteBooth'),
     addLogoBtn: $('addLogoBtn'), removeLogoBtn: $('removeLogoBtn'), logoModal: $('logoModal'), logoModalClose: $('logoModalClose'),
     logoModalSave: $('logoModalSave'), logoModalCancel: $('logoModalCancel'), logoModalClear: $('logoModalClear'), logoModalPreview: $('logoModalPreview'),
-    logoCropSlider: $('logoCropSlider'), logoCropSliderValue: $('logoCropSliderValue'), logoCropSliderLabel: $('logoCropSliderLabel'), logoCropSliderWrap: $('logoCropSliderWrap'),
+    logoImportFromUrl: $('logoImportFromUrl'),
+    logoCropSlider: $('logoCropSlider'), logoCropSliderValue: $('logoCropSliderValue'), logoCropSliderLabel: $('logoCropSliderLabel'), logoCropSliderWrap: $('logoCropSliderWrap'), logoCropDebugBtn: $('logoCropDebugBtn'),
     logoUploadLabel: $('logoUploadLabel'), logoUploadFake: $('logoUploadFake')
   };
 

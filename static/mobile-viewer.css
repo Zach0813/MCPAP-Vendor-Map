@@ -90,6 +90,7 @@ body {
   align-items: center;
   margin-left: 8px;
   gap: 6px;
+  position: relative;
 }
 
 .mv-day-filter-label {
@@ -101,15 +102,36 @@ body {
 }
 
 .mv-day-filter-select {
-  background: var(--mv-card);
-  border: 1px solid var(--mv-border);
+  background: var(--mv-card-2);
+  border: 1px solid var(--mv-accent);
   color: var(--mv-ink);
-  padding: 4px 6px;
+  padding: 6px 24px 6px 10px;
   border-radius: 8px;
   font-size: 12px;
   cursor: pointer;
-  min-width: 0;
-  max-width: 160px;
+  min-width: 150px;
+  max-width: 150px;
+  height: 32px;
+  line-height: 1.2;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.mv-day-filter-wrap::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 6px;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 10px 6px;
+  /* Light arrow so it stands out on dark header */
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23D6FF2E' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .mv-day-filter-select:hover {

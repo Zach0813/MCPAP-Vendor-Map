@@ -1223,7 +1223,12 @@
     SCHEDULED_DAY_OPTIONS.forEach(function (opt) {
       var o = document.createElement("option");
       o.value = opt.value;
-      o.textContent = (opt.dateShort != null ? opt.dateShort : opt.date) || opt.full || opt.value;
+      var labelShort = (opt.dateShort != null ? opt.dateShort : null);
+      if (opt.full && labelShort) {
+        o.textContent = opt.full + " – " + labelShort;
+      } else {
+        o.textContent = labelShort || opt.date || opt.full || opt.value;
+      }
       sel.appendChild(o);
     });
     state.selectedMapDay = sel.value || SCHEDULED_DAY_ORDER[0] || "saturday";

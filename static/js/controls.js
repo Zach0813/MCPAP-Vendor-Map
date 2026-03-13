@@ -179,15 +179,13 @@
     }
     if (els.logoModalPreview) {
       if (previewUrl === LOGO_BADGE_PLACEHOLDER) {
-        els.logoModalPreview.removeAttribute('crossOrigin');
         els.logoModalPreview.src = '';
         els.logoModalPreview.style.display = 'none';
         if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'none';
       } else {
-        els.logoModalPreview.crossOrigin = 'anonymous';
         els.logoModalPreview.src = previewUrl;
         els.logoModalPreview.style.display = 'block';
-        if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'block';
+        els.logoModalPreview.onload = function () { if (logoCanCrop) applyLogoCropPreview(); };
         if (els.logoModalPreview.complete && els.logoModalPreview.naturalWidth) applyLogoCropPreview();
       }
     }
@@ -201,6 +199,11 @@
       if (els.logoUpload) els.logoUpload.value = '';
       setFileInputLabel('Select file – no file chosen', false);
       lastUploadedLogoUrl = '';
+      // URL logos are not cropped in-app; hide crop controls
+      logoSelectedFile = null;
+      logoCanCrop = false;
+      setLogoCropSlider(0);
+      if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'none';
     });
   }
 
@@ -215,12 +218,22 @@
       return;
     }
     revokeLogoObjectUrl();
+    logoSelectedFile = null;
+    logoCanCrop = false;
     const currentUrl = (S.booths[S.selected].logo_url) || '';
     lastUploadedLogoUrl = '';
     if (els.logoUrl) els.logoUrl.value = currentUrl;
     if (els.logoUpload) els.logoUpload.value = '';
     setFileInputLabel('Select file – no file chosen', false);
     setLogoCropSlider(0);
+    // If this booth already uses an internal upload URL, allow cropping immediately
+    if (currentUrl && currentUrl.indexOf('/static/uploads/') === 0) {
+      logoCanCrop = true;
+      if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'block';
+    } else {
+      logoCanCrop = false;
+      if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'none';
+    }
     updateLogoPreview(currentUrl);
     els.logoModal.classList.remove('hidden');
     els.logoModal.style.display = 'flex';
@@ -229,6 +242,8 @@
   function closeLogoModal() {
     if (!els.logoModal) return;
     revokeLogoObjectUrl();
+    logoSelectedFile = null;
+    logoCanCrop = false;
     els.logoModal.classList.add('hidden');
     els.logoModal.style.display = 'none';
   }
@@ -304,16 +319,20 @@
     });
   }
 
-  // Track URL from upload; object URL for file so we can revoke
+  // Track URL from upload; object URL and selected file so we can crop/upload on Save
   let lastUploadedLogoUrl = '';
   let logoObjectUrl = null;
+  let logoSelectedFile = null;
   let logoCropAmount = 0; // 0–100: 0 = full image, 100 = zoom to center
+  let logoCanCrop = false; // only true for uploaded files (not external URLs)
 
   function revokeLogoObjectUrl() {
     if (logoObjectUrl) {
       try { URL.revokeObjectURL(logoObjectUrl); } catch (e) {}
       logoObjectUrl = null;
     }
+    logoSelectedFile = null;
+    logoCanCrop = false;
   }
 
   function setLogoCropSlider(value) {
@@ -323,32 +342,83 @@
     applyLogoCropPreview();
   }
 
+  // Crop = center rectangle that shrinks from full image (0%) to 10% of size (100%). No forced square.
+  // Output is 512×512 with crop scaled to fit and centered; letterboxing is transparent.
+  function getLogoCropRect(img) {
+    if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+    var w = img.naturalWidth;
+    var h = img.naturalHeight;
+    var pct = logoCropAmount / 100;
+    var cropW = Math.max(1, w * (1 - 0.9 * pct));
+    var cropH = Math.max(1, h * (1 - 0.9 * pct));
+    var sx = (w - cropW) / 2;
+    var sy = (h - cropH) / 2;
+    return { sx: sx, sy: sy, cropW: cropW, cropH: cropH, w: w, h: h };
+  }
+
   function applyLogoCropPreview() {
     var img = els.logoModalPreview;
     if (!img || !img.src || img.src === LOGO_BADGE_PLACEHOLDER) return;
-    var pct = logoCropAmount / 100;
-    var scale = pct >= 0.999 ? 10 : 1 / (1 - 0.9 * pct);
-    img.style.transform = 'scale(' + scale + ')';
+    if (!logoCanCrop) {
+      img.style.transform = 'scale(1)';
+      img.style.display = 'block';
+      if (window._logoCropPreviewCanvas) {
+        window._logoCropPreviewCanvas.style.display = 'none';
+      }
+      return;
+    }
+    var r = getLogoCropRect(img);
+    if (!r) return;
+    var wrap = img.parentElement;
+    if (!wrap) return;
+    var previewSize = 280;
+    if (!window._logoCropPreviewCanvas) {
+      var can = document.createElement('canvas');
+      can.width = previewSize;
+      can.height = previewSize;
+      can.style.position = 'absolute';
+      can.style.left = '0';
+      can.style.top = '0';
+      can.style.pointerEvents = 'none';
+      wrap.appendChild(can);
+      window._logoCropPreviewCanvas = can;
+    }
+    var can = window._logoCropPreviewCanvas;
+    img.style.display = 'none';
+    can.style.display = 'block';
+    var ctx = can.getContext('2d');
+    ctx.clearRect(0, 0, previewSize, previewSize);
+    var scale = previewSize / Math.max(r.cropW, r.cropH);
+    var dW = r.cropW * scale;
+    var dH = r.cropH * scale;
+    var dx = (previewSize - dW) / 2;
+    var dy = (previewSize - dH) / 2;
+    ctx.drawImage(img, r.sx, r.sy, r.cropW, r.cropH, dx, dy, dW, dH);
   }
 
   function getCenterCropCanvas(img, cropPct, outSize) {
     if (!img || !img.naturalWidth || !img.naturalHeight) return null;
-    var w = img.naturalWidth;
-    var h = img.naturalHeight;
-    var side = Math.min(w, h) * (1 - 0.9 * (cropPct / 100));
-    if (side < 1) side = 1;
-    var cx = w / 2;
-    var cy = h / 2;
-    var sx = cx - side / 2;
-    var sy = cy - side / 2;
+    var r = getLogoCropRect(img);
+    if (!r) return null;
     var size = outSize || 512;
     var canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
     var ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+    var scale = size / Math.max(r.cropW, r.cropH);
+    var dW = r.cropW * scale;
+    var dH = r.cropH * scale;
+    var dx = (size - dW) / 2;
+    var dy = (size - dH) / 2;
+    ctx.drawImage(img, r.sx, r.sy, r.cropW, r.cropH, dx, dy, dW, dH);
     return canvas;
+  }
+
+  function getCenterCropRect(img) {
+    var r = getLogoCropRect(img);
+    if (!r) return null;
+    return { sx: r.sx, sy: r.sy, side: r.cropW, w: r.w, h: r.h, cropW: r.cropW, cropH: r.cropH };
   }
 
   function setFileInputLabel(text, hasFile) {
@@ -364,6 +434,8 @@
     els.logoModalClear.addEventListener('click', () => {
       revokeLogoObjectUrl();
       lastUploadedLogoUrl = '';
+       logoSelectedFile = null;
+       logoCanCrop = false;
       setLogoCropSlider(0);
       if (els.logoUrl) els.logoUrl.value = '';
       if (els.logoUpload) els.logoUpload.value = '';
@@ -378,31 +450,164 @@
     });
   }
 
-  // Save logo from modal (center-crop with slider if image loaded, else use URL)
+  // Debug: show exactly which region of the original image will be cropped (red box)
+  if (els.logoCropDebugBtn) {
+    els.logoCropDebugBtn.addEventListener('click', function () {
+      var img = els.logoModalPreview;
+      if (!img || !img.src || img.src === LOGO_BADGE_PLACEHOLDER || !img.naturalWidth) {
+        alert('Load an image and use the crop slider first.');
+        return;
+      }
+      var r = getCenterCropRect(img);
+      if (!r) return;
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = r.w;
+        canvas.height = r.h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = Math.max(2, Math.min(r.w, r.h) / 80);
+        ctx.strokeRect(r.sx, r.sy, r.cropW, r.cropH);
+        var win = window.open('', '_blank');
+        win.document.write(
+          '<html><body style="margin:0;background:#222;">' +
+          '<img src="' + canvas.toDataURL() + '" style="max-width:100%;height:auto;display:block;" alt="Crop region" />' +
+          '<p style="color:#ccc;font-family:sans-serif;padding:8px;font-size:12px;">Red box = area saved. Image: ' + r.w + '×' + r.h + ', crop: ' + Math.round(r.cropW) + '×' + Math.round(r.cropH) + ', left: ' + Math.round(r.sx) + ', top: ' + Math.round(r.sy) + '</p></body></html>'
+        );
+        win.document.close();
+      } catch (e) {
+        console.error(e);
+        alert('Could not draw crop region (image may be cross-origin). Try with an uploaded or imported logo.');
+      }
+    });
+  }
+
+  // Import existing URL logo as uploaded image so it can be cropped
+  if (els.logoImportFromUrl) {
+    els.logoImportFromUrl.addEventListener('click', async () => {
+      if (!S.selected || !S.booths[S.selected]) return;
+      const currentUrl = (els.logoUrl && els.logoUrl.value || '').trim() || (S.booths[S.selected].logo_url || '').trim();
+      if (!currentUrl) {
+        alert('Enter a logo URL first.');
+        return;
+      }
+      // If this is already an internal upload URL, just enable cropping and skip the import call
+      if (currentUrl.indexOf('/static/uploads/') === 0) {
+        S.booths[S.selected].logo_url = currentUrl;
+        if (els.logoUrl) els.logoUrl.value = currentUrl;
+        lastUploadedLogoUrl = currentUrl;
+        logoSelectedFile = null;
+        logoCanCrop = true;
+        if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'block';
+        setLogoCropSlider(0);
+        updateLogoPreview(currentUrl);
+        boothEdit.capture(S.selected);
+        return;
+      }
+      try {
+        els.logoImportFromUrl.disabled = true;
+        els.logoImportFromUrl.textContent = 'Importing…';
+        const resp = await fetch('/api/import-logo-from-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: currentUrl })
+        });
+        const result = await resp.json();
+        if (!result.ok || !result.url) {
+          console.error('Import URL failed', result);
+          alert(result.error || 'Import failed');
+          return;
+        }
+        // Switch booth to use the imported upload URL
+        const newUrl = result.url;
+        S.booths[S.selected].logo_url = newUrl;
+        if (els.logoUrl) els.logoUrl.value = newUrl;
+        lastUploadedLogoUrl = newUrl;
+        // Enable cropping on the now first-party image
+        logoSelectedFile = null;
+        logoCanCrop = true;
+        if (els.logoCropSliderWrap) els.logoCropSliderWrap.style.display = 'block';
+        setLogoCropSlider(0);
+        updateLogoPreview(newUrl);
+        // Persist booth update
+        if (MCPP.draw) MCPP.draw(S.selected);
+        if (MCPP.save) await MCPP.save(false);
+        boothEdit.capture(S.selected);
+      } catch (e) {
+        console.error('Import from URL error:', e);
+        alert('Import failed: ' + (e.message || 'Unknown error'));
+      } finally {
+        els.logoImportFromUrl.disabled = false;
+        els.logoImportFromUrl.textContent = 'Import URL for cropping';
+      }
+    });
+  }
+
+  // Save logo from modal
   if (els.logoModalSave) {
     els.logoModalSave.addEventListener('click', async () => {
       if (!S.selected || !S.booths[S.selected]) return;
       let url = (lastUploadedLogoUrl || (els.logoUrl && els.logoUrl.value || '').trim());
-      var img = els.logoModalPreview;
-      if (img && img.src && img.src !== LOGO_BADGE_PLACEHOLDER && img.naturalWidth) {
+
+      const img = els.logoModalPreview;
+
+      // If a file was selected, upload it (with optional center crop when slider > 0)
+      if (logoSelectedFile) {
         try {
-          var canvas = getCenterCropCanvas(img, logoCropAmount, 512);
-          if (canvas) {
-            var blob = await new Promise(function (resolve) {
-              canvas.toBlob(resolve, 'image/png', 0.92);
-            });
-            if (blob) {
-              var formData = new FormData();
-              formData.append('file', blob, 'logo.png');
-              var response = await fetch('/api/upload-logo', { method: 'POST', body: formData });
-              var result = await response.json();
-              if (result.ok && result.url) url = result.url;
+          let blobToUpload = null;
+          if (logoCanCrop && logoCropAmount > 0 && img && img.src && img.src !== LOGO_BADGE_PLACEHOLDER && img.naturalWidth) {
+            const canvas = getCenterCropCanvas(img, logoCropAmount, 512);
+            if (canvas) {
+              blobToUpload = await new Promise(function (resolve) {
+                canvas.toBlob(resolve, 'image/png', 0.92);
+              });
             }
+          }
+
+          // If no explicit crop (slider at 0) or crop failed, upload the original file as-is
+          if (!blobToUpload) {
+            blobToUpload = logoSelectedFile;
+          }
+
+          if (blobToUpload) {
+            const formData = new FormData();
+            formData.append('file', blobToUpload, blobToUpload.name || 'logo.png');
+            const response = await fetch('/api/upload-logo', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (result.ok && result.url) url = result.url;
           }
         } catch (e) {
           console.error('Crop/upload error:', e);
         }
+
+        // Reset file/crop state after upload
         revokeLogoObjectUrl();
+        logoSelectedFile = null;
+        logoCanCrop = false;
+        setLogoCropSlider(0);
+      } else if (logoCanCrop && logoCropAmount > 0 && img && img.src && img.src !== LOGO_BADGE_PLACEHOLDER && img.naturalWidth) {
+        // Cropping an existing internal upload (imported earlier) using the current preview
+        try {
+          const canvas = getCenterCropCanvas(img, logoCropAmount, 512);
+          if (canvas) {
+            const blob = await new Promise(function (resolve) {
+              canvas.toBlob(resolve, 'image/png', 0.92);
+            });
+            if (blob) {
+              const formData = new FormData();
+              formData.append('file', blob, 'logo.png');
+              const response = await fetch('/api/upload-logo', { method: 'POST', body: formData });
+              const result = await response.json();
+              if (result.ok && result.url) url = result.url;
+            }
+          }
+        } catch (e) {
+          console.error('Crop/upload (existing upload) error:', e);
+        }
+
+        // Reset crop slider after re-upload
+        setLogoCropSlider(0);
       }
 
       S.booths[S.selected].logo_url = url;
@@ -439,6 +644,9 @@
       lastUploadedLogoUrl = '';
       if (logoObjectUrl) try { URL.revokeObjectURL(logoObjectUrl); } catch (e) {}
       logoObjectUrl = URL.createObjectURL(file);
+      logoSelectedFile = file;
+      logoCanCrop = true;
+      setLogoCropSlider(0);
       if (els.logoModalPreview) {
         els.logoModalPreview.removeAttribute('crossOrigin');
         els.logoModalPreview.src = logoObjectUrl;
