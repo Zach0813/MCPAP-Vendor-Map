@@ -62,6 +62,8 @@ def save_booths(obj):
     try:
         with VENDORS_JSON.open("w", encoding="utf-8") as f:
             json.dump(obj, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
         return True
     except Exception:
         return False
