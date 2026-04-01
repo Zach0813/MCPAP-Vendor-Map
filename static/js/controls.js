@@ -1028,6 +1028,71 @@
     });
   }
 
+  function parseVendorImportJson(text) {
+    const data = JSON.parse(text);
+    if (Array.isArray(data)) {
+      const out = {};
+      data.forEach((item, i) => {
+        if (!item || typeof item !== 'object') return;
+        const bid = String(item.id || `B${i + 1}`);
+        item.id = bid;
+        out[bid] = item;
+      });
+      return out;
+    }
+    if (!data || typeof data !== 'object') {
+      throw new Error('File must be JSON with an object or array of booths.');
+    }
+    return data;
+  }
+
+  if (els.menuExportVendors) {
+    els.menuExportVendors.addEventListener('click', () => {
+      if (!S.isAdmin) return;
+      if (MCPP.dl) {
+        const stamp = new Date().toISOString().slice(0, 10);
+        MCPP.dl(`mcpp-vendors-${stamp}.json`, JSON.stringify(S.booths, null, 2), 'application/json');
+      }
+      if (els.profileMenu) els.profileMenu.classList.add('hidden');
+    });
+  }
+
+  if (els.menuImportVendors && els.importVendorsFile) {
+    els.menuImportVendors.addEventListener('click', () => {
+      if (!S.isAdmin) return;
+      els.importVendorsFile.click();
+    });
+    els.importVendorsFile.addEventListener('change', async () => {
+      const file = els.importVendorsFile.files && els.importVendorsFile.files[0];
+      els.importVendorsFile.value = '';
+      if (!file || !S.isAdmin) return;
+      try {
+        const text = await file.text();
+        const booths = parseVendorImportJson(text);
+        const prevN = Object.keys(S.booths).length;
+        const nextN = Object.keys(booths).length;
+        if (!window.confirm(
+          `Replace all ${prevN} booth(s) on the server with ${nextN} booth(s) from this file? This cannot be undone.`
+        )) {
+          return;
+        }
+        S.booths = booths;
+        try {
+          if (MCPP.boothEdit && typeof MCPP.boothEdit.clear === 'function') MCPP.boothEdit.clear();
+        } catch (_) {}
+        if (MCPP.save) await MCPP.save(false);
+        if (MCPP.load) await MCPP.load();
+        if (MCPP.clearSelection) MCPP.clearSelection();
+        if (MCPP.redraw) MCPP.redraw();
+        if (els.profileMenu) els.profileMenu.classList.add('hidden');
+        if (MCPP.resetToListPanel) MCPP.resetToListPanel();
+        window.alert('Vendor data imported and saved.');
+      } catch (e) {
+        window.alert('Import failed: ' + (e && e.message ? e.message : String(e)));
+      }
+    });
+  }
+
   if (els.backToList) {
     els.backToList.addEventListener('click', () => {
       // If admin made changes but didn't save, restore the last captured state

@@ -1274,9 +1274,13 @@ input, textarea, button, select {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow: hidden;
-  max-height: 320px;
+  /* Tall enough for 5 categories + 4 vendor statuses; scroll on short viewports */
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: min(72vh, 440px);
   transition: max-height 0.35s ease, opacity 0.3s ease, margin-top 0.3s ease;
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
 }
 
 .badge-legend.collapsed .legend-items {

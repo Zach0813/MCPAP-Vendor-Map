@@ -65,6 +65,7 @@
   const $ = (id) => document.getElementById(id);
 const els = {
     profileBtn: $('profileBtn'), profileMenu: $('profileMenu'), loginBtn: $('loginBtn'), logoutBtn: $('logoutBtn'),
+    menuExportVendors: $('menuExportVendors'), menuImportVendors: $('menuImportVendors'), importVendorsFile: $('importVendorsFile'),
     roleBadge: $('roleBadge'), adminBar: $('adminBar'), mapDaySelect: $('mapDaySelect'),
     fit: $('fit'), toggleType: $('toggleType'),
     defWidth: $('defWidth'), defLength: $('defLength'), defCat: $('defCat'),

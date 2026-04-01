@@ -83,7 +83,10 @@
     <div class="profile">
       <button id="profileBtn" class="ghost">⋯</button>
       <div id="profileMenu" class="menu hidden">
-        <button id="loginBtn">Login (PIN)</button>
+        <button type="button" id="menuExportVendors" class="admin-only">Export vendor data…</button>
+        <button type="button" id="menuImportVendors" class="admin-only">Import vendor data…</button>
+        <input type="file" id="importVendorsFile" accept=".json,application/json" class="hidden" aria-hidden="true" tabindex="-1" title="" />
+        <button type="button" id="loginBtn">Login (PIN)</button>
       </div>
     </div>
   </header>

@@ -1,6 +1,6 @@
 /**
  * Mobile viewer — standalone script for /mobile. No shared desktop code.
- * Viewer-only: list, map with booth polygons, detail sheet.
+ * Requires mobile-detail-html.js (McppMobileDetailHtml) before this file.
  */
 (function () {
   "use strict";
@@ -83,15 +83,7 @@
   }
 
   function normalizeCategoryKey(k) {
-    const key = String(k || "standard").toLowerCase().replace(/[^a-z]/g, "");
-    const alias = {
-      standard: "standard", plant: "standard", plantvendor: "standard",
-      collaborator: "collaborator", craft: "collaborator",
-      foodbeverage: "foodbeverage", food: "foodbeverage", beverage: "foodbeverage",
-      activity: "activity", entertainment: "activity",
-      misc: "misc", miscellaneous: "misc", other: "misc"
-    };
-    return alias[key] || "standard";
+    return window.McppMobileDetailHtml.normalizeCategoryKey(k);
   }
 
   function d2ll(lat0, dx, dy) {
@@ -159,10 +151,19 @@
     badgeOverlays: {},
     proj: null,
     selectedId: null,
-    searchQuery: "",
     mapsApiReady: false,
     mapLabelsOn: false,
-    selectedMapDay: "saturday"
+    selectedMapDay: "saturday",
+    /** Next drawMapPolygons should not fitBounds (opened from /mobile?booth= vendor list). */
+    _preserveViewportAfterListDeepLink: false,
+    /** After /mobile?booth=id&view=map — pan to booth, no detail sheet. */
+    _panToBoothIdFromList: null,
+    /** While true, do not persist map center/zoom (programmatic pan/zoom). */
+    _suppressViewportSave: false,
+    /** Vendor-list → map pan scheduled; ignore duplicate tryPanToBoothFromVendorListNav. */
+    _vendorListPanAwaitingIdle: false,
+    /** While true, skip logo/label/badge resize on zoom_changed (programmatic zoom animation). */
+    _suppressOverlayZoomSync: false
   };
 
   function latLngFromAny(pos) {
@@ -403,128 +404,10 @@
     }
   }
 
-  var CATEGORY_ORDER = ["standard", "collaborator", "foodbeverage", "activity", "misc"];
-  var listCollapsed = {};
-
-  function categoryLabel(key) {
-    return (CAT_NAMES && CAT_NAMES[key]) ? CAT_NAMES[key] : (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Vendor");
-  }
-
-  function hexToRgba(hex, alpha) {
-    if (!hex || typeof hex !== "string") return "rgba(0,0,0," + alpha + ")";
-    var clean = hex.replace("#", "");
-    if (clean.length !== 6) return "rgba(0,0,0," + alpha + ")";
-    var r = parseInt(clean.slice(0, 2), 16);
-    var g = parseInt(clean.slice(2, 4), 16);
-    var b = parseInt(clean.slice(4, 6), 16);
-    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
-  }
-
-  function renderList() {
-    var listEl = document.getElementById("mvBoothList");
-    if (!listEl) return;
-    var q = (state.searchQuery || "").toLowerCase().trim();
-    var grouped = {};
-    Object.entries(getVisibleVendors()).forEach(function (entry) {
-      var id = entry[0];
-      var booth = entry[1];
-      if (q) {
-        var hay = [
-          id || "",
-          booth.biz || "",
-          booth.vendor_name || "",
-          booth.phone || "",
-          booth.email || "",
-          booth.website || "",
-          booth.notes || ""
-        ].join(" ").toLowerCase();
-        if (!hay.includes(q)) return;
-      }
-      var key = normalizeCategoryKey(booth.category);
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push([id, booth]);
-    });
-    var order = CATEGORY_ORDER.concat(Object.keys(grouped).filter(function (k) { return CATEGORY_ORDER.indexOf(k) === -1; }));
-    listEl.innerHTML = "";
-    var hasAny = false;
-    order.forEach(function (catKey) {
-      var items = grouped[catKey];
-      if (!items || !items.length) return;
-      hasAny = true;
-      items.sort(function (a, b) { return String(a[0]).localeCompare(b[0], undefined, { numeric: true }); });
-      var section = document.createElement("div");
-      section.className = "mv-list-category";
-      section.dataset.cat = catKey;
-      var header = document.createElement("button");
-      header.type = "button";
-      header.className = "mv-category-header";
-      header.setAttribute("aria-expanded", listCollapsed[catKey] ? "false" : "true");
-      var catEmoji = CAT_EMOJI[catKey] || CAT_EMOJI.standard;
-      header.innerHTML = "<span class=\"mv-category-label\"><span class=\"mv-category-caret\">▾</span><span class=\"mv-category-emoji\" aria-hidden=\"true\">" + catEmoji + "</span>" + escapeHtml(categoryLabel(catKey)) + "</span><span class=\"mv-category-count\">" + items.length + "</span>";
-      var body = document.createElement("div");
-      body.className = "mv-category-body";
-      body.style.display = listCollapsed[catKey] ? "none" : "block";
-      var catTheme = CAT[catKey] || CAT.standard;
-      if (catTheme && catTheme.f) {
-        header.style.background = catTheme.f;
-        header.style.borderBottom = "1px solid " + (catTheme.s || "rgba(0,0,0,.2)");
-        header.style.color = "#eaf6f5";
-        section.style.borderColor = catTheme.s || catTheme.f;
-        section.style.background = hexToRgba(catTheme.f, 0.18);
-        body.style.background = hexToRgba(catTheme.f, 0.1);
-      }
-      header.addEventListener("click", function () {
-        listCollapsed[catKey] = !listCollapsed[catKey];
-        body.style.display = listCollapsed[catKey] ? "none" : "block";
-        header.setAttribute("aria-expanded", listCollapsed[catKey] ? "false" : "true");
-      });
-      items.forEach(function (pair) {
-        var id = pair[0];
-        var booth = pair[1];
-        var item = document.createElement("button");
-        item.type = "button";
-        item.className = "mv-list-item";
-        item.dataset.boothId = id;
-        var style = CAT[catKey] || CAT.standard;
-        var swatchStyle = "background:" + style.f + ";border-color:" + style.s;
-        var name = booth.biz || booth.vendor_name || "—";
-        item.innerHTML = "<span class=\"mv-list-swatch\" style=\"" + escapeHtml(swatchStyle) + "\" aria-hidden=\"true\"></span><span class=\"mv-list-item-id\">" + escapeHtml(id) + "</span><span class=\"mv-list-item-name\"><span>" + escapeHtml(name) + "</span></span>";
-        var logoUrl = (booth.logo_url || "").trim();
-        if (logoUrl) {
-          var logoWrap = document.createElement("span");
-          logoWrap.className = "mv-list-item-logo";
-          var img = document.createElement("img");
-          img.src = logoUrl;
-          img.alt = "";
-          img.loading = "lazy";
-          img.setAttribute("draggable", "false");
-          logoWrap.appendChild(img);
-          item.appendChild(logoWrap);
-        }
-        item.addEventListener("click", function () { openDetail(id); });
-        body.appendChild(item);
-      });
-      section.appendChild(header);
-      section.appendChild(body);
-      listEl.appendChild(section);
-    });
-    if (!hasAny) {
-      var empty = document.createElement("div");
-      empty.className = "mv-empty-list";
-      empty.textContent = q ? "No vendors match your search." : "No vendors yet.";
-      listEl.appendChild(empty);
-    }
-  }
-
-  function escapeHtml(s) {
-    const div = document.createElement("div");
-    div.textContent = s;
-    return div.innerHTML;
-  }
-
   var MAP_MAX_ZOOM = 23;
 
   function openDetail(id) {
+    closeMenu();
     state.selectedId = id;
     const sheet = document.getElementById("mvDetailSheet");
     const body = document.getElementById("mvDetailBody");
@@ -535,12 +418,27 @@
     if (!booth) {
       body.innerHTML = "<p class=\"mv-detail-value\">No details.</p>";
     } else {
-      body.innerHTML = buildDetailHtml(booth);
-      // Do not center or zoom the map here. The map only pans to the booth when the user
-      // clicks "View on Map", so the pan is visible when coming from the vendor list.
+      body.innerHTML = window.McppMobileDetailHtml.buildDetailHtml(booth);
     }
     sheet.classList.add("open");
     sheet.setAttribute("aria-hidden", "false");
+  }
+
+  function maybeOpenBoothFromQuery() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var booth = params.get("booth");
+      if (!booth || !state.vendors[booth]) return;
+      state._preserveViewportAfterListDeepLink = true;
+      // From vendor list "View on Map": map + pan only, no detail card.
+      if (params.get("view") === "map") {
+        state._panToBoothIdFromList = booth;
+        history.replaceState({}, "", window.location.pathname);
+        return;
+      }
+      openDetail(booth);
+      history.replaceState({}, "", window.location.pathname);
+    } catch (e) { /* ignore */ }
   }
 
   var DETAIL_CLOSE_DURATION_MS = 300;
@@ -552,6 +450,8 @@
   var VIEW_ON_MAP_DELAY_BEFORE_PAN_MS = 100;
   /** Duration of the pan animation so the move to the booth is visible (ms). */
   var VIEW_ON_MAP_PAN_DURATION_MS = 400;
+  /** After pan + zoom settle, short wait before booth highlight pulse (detail sheet → View on Map). */
+  var VIEW_ON_MAP_PULSE_AFTER_PAN_MS = 120;
 
   /**
    * Pan the map from its current center to target over durationMs so the movement is visible.
@@ -593,13 +493,220 @@
     requestAnimationFrame(step);
   }
 
+  var MV_MAP_VIEWPORT_KEY = "mvMapViewport";
+  var _viewportSaveTimer = null;
+
+  function readSavedMapViewport() {
+    try {
+      var raw = localStorage.getItem(MV_MAP_VIEWPORT_KEY);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || typeof o.lat !== "number" || typeof o.lng !== "number") return null;
+      if (!Number.isFinite(o.lat) || !Number.isFinite(o.lng)) return null;
+      if (Math.abs(o.lat) > 90 || Math.abs(o.lng) > 180) return null;
+      var z = Number(o.zoom);
+      if (!Number.isFinite(z)) z = 20;
+      z = Math.max(10, Math.min(24, z));
+      return { lat: o.lat, lng: o.lng, zoom: z };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function scheduleSaveMapViewport() {
+    if (!state.map || state._suppressViewportSave) return;
+    if (_viewportSaveTimer) clearTimeout(_viewportSaveTimer);
+    _viewportSaveTimer = setTimeout(function () {
+      _viewportSaveTimer = null;
+      if (!state.map || state._suppressViewportSave) return;
+      try {
+        var c = state.map.getCenter();
+        if (!c) return;
+        var z = state.map.getZoom();
+        if (z == null || !Number.isFinite(z)) return;
+        z = Math.round(z);
+        localStorage.setItem(
+          MV_MAP_VIEWPORT_KEY,
+          JSON.stringify({ lat: c.lat(), lng: c.lng(), zoom: z })
+        );
+      } catch (e) { /* ignore quota / private mode */ }
+    }, 650);
+  }
+
+  /** Smooth zoom so the camera does not jump after pan (vendor list → map). */
+  function animateZoomTo(map, targetZoom, durationMs, onDone) {
+    function finishOverlaySync() {
+      state._suppressOverlayZoomSync = false;
+      if (typeof state._updateMobileLogoBadgeSizes === "function") {
+        state._updateMobileLogoBadgeSizes();
+      }
+    }
+    if (!map || targetZoom == null || !Number.isFinite(targetZoom)) {
+      if (onDone) onDone();
+      return;
+    }
+    var startZ = map.getZoom();
+    if (startZ == null || !Number.isFinite(startZ)) {
+      map.setZoom(targetZoom);
+      if (onDone) onDone();
+      return;
+    }
+    if (Math.abs(startZ - targetZoom) < 0.05) {
+      map.setZoom(targetZoom);
+      if (onDone) onDone();
+      return;
+    }
+    state._suppressOverlayZoomSync = true;
+    var startTime = null;
+    function step(ts) {
+      if (startTime == null) startTime = ts;
+      var t = Math.min((ts - startTime) / durationMs, 1);
+      var eased = 1 - Math.pow(1 - t, 2);
+      var z = startZ + (targetZoom - startZ) * eased;
+      /* Integer zoom avoids satellite / 2D map warping at fractional zoom. */
+      map.setZoom(Math.round(z));
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        map.setZoom(Math.round(targetZoom));
+        finishOverlaySync();
+        if (onDone) onDone();
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  /** Pan/zoom to booth when opening /mobile?booth=id&view=map from vendor list. */
+  var LIST_NAV_PAN_DURATION_MS = 1100;
+  /** Zoom-in animation length (ms); runs in parallel with the end of the pan when overlap is used. */
+  var LIST_NAV_ZOOM_DURATION_MS = 550;
+  /** Start zoom when pan progress reaches this fraction (0–1) so zoom begins before the pan fully stops. */
+  var LIST_NAV_ZOOM_START_AT_PAN_T = 0.68;
+  /** After pan + zoom both finish, brief pause before pulse (lets overlay sync finish). */
+  var LIST_NAV_PULSE_AFTER_ZOOM_MS = 30;
+
+  function runVendorListPanToBooth(id) {
+    var booth = state.vendors[id];
+    if (!booth || !state.map) {
+      state._suppressViewportSave = false;
+      return;
+    }
+    var c = booth.center;
+    if (!c || !Number.isFinite(Number(c.lat)) || !Number.isFinite(Number(c.lng))) {
+      state._suppressViewportSave = false;
+      return;
+    }
+    try {
+      state.map.setTilt(0);
+      state.map.setHeading(0);
+    } catch (e) { /* ignore */ }
+    var map = state.map;
+    var centerLl = new google.maps.LatLng(Number(c.lat), Number(c.lng));
+    var endLat = centerLl.lat();
+    var endLng = centerLl.lng();
+    state._suppressViewportSave = true;
+
+    function finishVendorListNavToBooth() {
+      if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
+      setTimeout(function () {
+        var path = boothRectPath(booth);
+        if (path.length >= 3) createPulseRingDom(state.map, path, 2000);
+        state._suppressViewportSave = false;
+        scheduleSaveMapViewport();
+      }, LIST_NAV_PULSE_AFTER_ZOOM_MS);
+    }
+
+    requestAnimationFrame(function () {
+      if (!state.map) {
+        state._suppressViewportSave = false;
+        return;
+      }
+      var start = map.getCenter();
+      if (!start) {
+        map.panTo(centerLl);
+        animateZoomTo(map, MAP_MAX_ZOOM, LIST_NAV_ZOOM_DURATION_MS, finishVendorListNavToBooth);
+        return;
+      }
+      var startLat = start.lat();
+      var startLng = start.lng();
+      var panMs = LIST_NAV_PAN_DURATION_MS;
+      var zoomStartT = LIST_NAV_ZOOM_START_AT_PAN_T;
+      var panStartTime = null;
+      var zoomScheduled = false;
+      var panComplete = false;
+      var zoomComplete = false;
+
+      function tryFinishVendorListNav() {
+        if (!panComplete || !zoomComplete) return;
+        finishVendorListNavToBooth();
+      }
+
+      function scheduleZoom() {
+        if (zoomScheduled) return;
+        zoomScheduled = true;
+        animateZoomTo(map, MAP_MAX_ZOOM, LIST_NAV_ZOOM_DURATION_MS, function () {
+          zoomComplete = true;
+          tryFinishVendorListNav();
+        });
+      }
+
+      function panStep(ts) {
+        if (panStartTime == null) panStartTime = ts;
+        var elapsed = ts - panStartTime;
+        var t = Math.min(elapsed / panMs, 1);
+        var eased = 1 - Math.pow(1 - t, 3);
+        var lat = startLat + (endLat - startLat) * eased;
+        var lng = startLng + (endLng - startLng) * eased;
+        map.setCenter({ lat: lat, lng: lng });
+
+        if (!zoomScheduled && t >= zoomStartT) {
+          scheduleZoom();
+        }
+
+        if (t < 1) {
+          requestAnimationFrame(panStep);
+        } else {
+          map.setCenter(centerLl);
+          panComplete = true;
+          if (!zoomScheduled) {
+            scheduleZoom();
+          }
+          tryFinishVendorListNav();
+        }
+      }
+      requestAnimationFrame(panStep);
+    });
+  }
+
+  function tryPanToBoothFromVendorListNav() {
+    var id = state._panToBoothIdFromList;
+    if (!id || !state.map || !window.google || !google.maps) return;
+    if (!state.vendors[id]) {
+      state._panToBoothIdFromList = null;
+      return;
+    }
+    if (state._vendorListPanAwaitingIdle) return;
+    state._vendorListPanAwaitingIdle = true;
+    google.maps.event.addListenerOnce(state.map, "idle", function () {
+      state._vendorListPanAwaitingIdle = false;
+      id = state._panToBoothIdFromList;
+      if (!id) return;
+      state._panToBoothIdFromList = null;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          runVendorListPanToBooth(id);
+        });
+      });
+    });
+  }
+
   function closeDetail() {
     state.selectedId = null;
     const sheet = document.getElementById("mvDetailSheet");
     if (!sheet) return;
     if (document.activeElement && sheet.contains(document.activeElement)) {
-      var activeTab = document.querySelector(".mv-tab.active");
-      if (activeTab && typeof activeTab.focus === "function") activeTab.focus();
+      var menuBtn = document.getElementById("mvMenuBtn");
+      if (menuBtn && typeof menuBtn.focus === "function") menuBtn.focus();
       else if (document.activeElement && typeof document.activeElement.blur === "function") document.activeElement.blur();
     }
     sheet.classList.remove("open");
@@ -629,79 +736,17 @@
     }, DETAIL_CLOSE_DURATION_MS);
   }
 
-  function buildDetailHtml(booth) {
-    const catKey = normalizeCategoryKey(booth.category);
-    const catName = CAT_NAMES[catKey] || "Vendor";
-    const biz = booth.biz || booth.vendor_name || "—";
-    const vendorName = booth.vendor_name ? escapeHtml(booth.vendor_name) : "";
-    const showPhone = booth.phone && (booth.phone_public !== false);
-    const showEmail = booth.email && (booth.email_public !== false);
-    const website = (booth.website || "").trim();
-    const address = (booth.business_address || "").trim();
-    const days = Array.isArray(booth.scheduled_days) ? booth.scheduled_days : [];
-    const logoUrl = (booth.logo_url || "").trim();
-    var badgeList = [];
-    if (booth.is_event_staff) badgeList.push({ id: "event-staff", label: "Event Staff", svgId: "badge-event-staff" });
-    if (booth.is_partner_vendor) badgeList.push({ id: "partner-vendor", label: "Partner Vendor", svgId: "badge-partner-vendor" });
-    if (booth.is_featured_vendor) badgeList.push({ id: "featured-vendor", label: "Featured Vendor", svgId: "badge-featured-vendor" });
-    if (booth.is_return_vendor) badgeList.push({ id: "returning-vendor", label: "Returning Vendor", svgId: "badge-returning-vendor" });
-
-    var html = "";
-    html += '<div class="mv-detail-top">';
-    html += '<div class="mv-detail-top-text">';
-    var catEmoji = CAT_EMOJI[catKey] || "";
-    html += '<div class="mv-detail-row"><div class="mv-detail-label">Category</div><div class="mv-detail-value">' + (catEmoji ? "<span class=\"mv-detail-cat-emoji\" aria-hidden=\"true\">" + catEmoji + "</span> " : "") + escapeHtml(catName) + '</div></div>';
-    html += '<div class="mv-detail-row"><div class="mv-detail-label">Business / Booth</div><div class="mv-detail-value">' + escapeHtml(biz) + '</div></div>';
-    if (vendorName) {
-      html += '<div class="mv-detail-row"><div class="mv-detail-label">Vendor name</div><div class="mv-detail-value">' + vendorName + '</div></div>';
-    }
-    html += '</div>';
-    if (logoUrl) {
-      html += '<div class="mv-detail-logo-wrap"><img class="mv-detail-logo" src="' + escapeHtml(logoUrl) + '" alt="Vendor logo" referrerpolicy="no-referrer"></div>';
-    }
-    html += '</div>';
-    if (badgeList.length) {
-      html += '<div class="mv-detail-status-section"><div class="mv-detail-label">Vendor Status</div><div class="mv-detail-badges-wrap"><div class="mv-detail-badges">';
-      badgeList.forEach(function(b) {
-        html += '<span class="mv-detail-badge mv-detail-badge-' + escapeHtml(b.id) + '" title="' + escapeHtml(b.label) + '">';
-        html += '<svg width="28" height="28" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><use href="#' + escapeHtml(b.svgId) + '"/></svg>';
-        html += '<span class="mv-detail-badge-text">' + escapeHtml(b.label) + '</span></span>';
-      });
-      html += '</div></div></div>';
-    }
-    if (days.length) {
-      var dayToDate = { friday: 'Friday, May 15, 2026', saturday: 'Saturday, May 16, 2026', sunday: 'Sunday, May 17, 2026' };
-      html += '<div class="mv-detail-section mv-detail-section-days"><div class="mv-detail-section-title">Scheduled Days</div><div class="mv-detail-schedule">';
-      days.forEach(function(d) {
-        var label = dayToDate[d] || d;
-        html += '<span class="mv-detail-day">' + escapeHtml(label) + '</span>';
-      });
-      html += '</div></div>';
-    }
-    var hasContact = showPhone || showEmail || !!website || !!address;
-    if (hasContact) {
-      html += '<div class="mv-detail-section mv-detail-section-contact"><div class="mv-detail-section-title">Contact</div>';
-      if (showPhone) {
-        var tel = (booth.phone || "").replace(/\D/g, "");
-        html += '<div class="mv-detail-row"><div class="mv-detail-label">Phone</div><div class="mv-detail-value"><a href="tel:' + escapeHtml(tel) + '">' + escapeHtml(booth.phone) + '</a></div></div>';
-      }
-      if (showEmail) {
-        html += '<div class="mv-detail-row"><div class="mv-detail-label">Email</div><div class="mv-detail-value"><a href="mailto:' + escapeHtml(booth.email) + '">' + escapeHtml(booth.email) + '</a></div></div>';
-      }
-      if (website) {
-        html += '<div class="mv-detail-row"><div class="mv-detail-label">Website</div><div class="mv-detail-value"><a href="' + escapeHtml(website) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(website) + '</a></div></div>';
-      }
-      if (address) {
-        var mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(address);
-        html += '<div class="mv-detail-row"><div class="mv-detail-label">Address</div><div class="mv-detail-value"><a href="' + escapeHtml(mapsUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(address) + '</a></div></div>';
-      }
-      html += '</div>';
-    }
-    return html;
-  }
-
-  function drawMapPolygons() {
+  /**
+   * @param {{ preserveViewport?: boolean }} [options] If preserveViewport, keep center/zoom (e.g. event day change).
+   */
+  function drawMapPolygons(options) {
     if (!state.map || !window.google || !google.maps) return;
+    var opts = options || {};
+    var preserveViewport = opts.preserveViewport === true;
+    if (state._preserveViewportAfterListDeepLink) {
+      preserveViewport = true;
+      state._preserveViewportAfterListDeepLink = false;
+    }
     Object.keys(state.polygons).forEach((id) => {
       state.polygons[id].setMap(null);
     });
@@ -737,9 +782,6 @@
       try { google.maps.event.removeListener(state._logoZoomListener); } catch (e) {}
       state._logoZoomListener = null;
     }
-    const defs = getDefaults();
-    const center = (defs.center && { lat: defs.center.lat, lng: defs.center.lng }) || DEFAULT_CENTER;
-    state.map.setCenter(center);
     const bounds = new google.maps.LatLngBounds();
     let hasBounds = false;
     const visibleVendors = getVisibleVendors();
@@ -951,6 +993,7 @@
     }
     function updateMobileLogoBadgeSizes() {
       if (!state.map) return;
+      if (state._suppressOverlayZoomSync) return;
       var z = state.map.getZoom();
       var size = logoBadgeSizePxForZoom(z);
       var showLogo = (z >= LOGO_BADGE_MIN_ZOOM);
@@ -985,9 +1028,10 @@
       updateMobileBadgePositions();
     }
     state._updateMobileBadgePositions = updateMobileBadgePositions;
+    state._updateMobileLogoBadgeSizes = updateMobileLogoBadgeSizes;
     state._logoZoomListener = state.map.addListener("zoom_changed", updateMobileLogoBadgeSizes);
     updateMobileLogoBadgeSizes();
-    if (hasBounds && !bounds.isEmpty()) {
+    if (!preserveViewport && hasBounds && !bounds.isEmpty()) {
       var padding = { top: 40, bottom: 40, left: 20, right: 20 };
       state.map.fitBounds(bounds, padding);
       var fitIdle = state.map.addListener("idle", function () {
@@ -1042,23 +1086,38 @@
     const mapEl = document.getElementById("mvMap");
     if (!mapEl || !state.mapsApiReady || !window.google || !google.maps) return null;
     const defs = getDefaults();
-    const center = (defs.center && { lat: defs.center.lat, lng: defs.center.lng }) || DEFAULT_CENTER;
-    const zoom = (defs.zoom != null && defs.zoom >= 0) ? defs.zoom : 20;
+    const saved = readSavedMapViewport();
+    const defaultCenter = (defs.center && { lat: defs.center.lat, lng: defs.center.lng }) || DEFAULT_CENTER;
+    const defaultZoom = (defs.zoom != null && defs.zoom >= 0) ? defs.zoom : 20;
+    const center = saved ? { lat: saved.lat, lng: saved.lng } : defaultCenter;
+    const zoom = Math.round(saved ? saved.zoom : defaultZoom);
     const opts = {
       center,
       zoom,
       mapTypeId: "satellite",
-      mapTypeControl: false,
-      rotateControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-      zoomControl: true,
+      /* Top-down 2D — avoid 3D / 45° imagery warping overlays and satellite tiles. */
+      tilt: 0,
+      heading: 0,
+      isFractionalZoomEnabled: false,
+      // Hide native zoom / map-type / fullscreen UI; users pan & pinch-zoom on the map canvas.
+      disableDefaultUI: true,
       scrollwheel: true,
       gestureHandling: "auto"
     };
     state.map = new google.maps.Map(mapEl, opts);
-    drawMapPolygons();
+    try {
+      state.map.setTilt(0);
+      state.map.setHeading(0);
+    } catch (e) { /* ignore */ }
+    state.map.addListener("tilt_changed", function () {
+      try {
+        if (state.map && Number(state.map.getTilt()) > 0) state.map.setTilt(0);
+      } catch (e2) { /* ignore */ }
+    });
+    state.map.addListener("idle", scheduleSaveMapViewport);
+    drawMapPolygons({});
     updateMapLabelsButton();
+    tryPanToBoothFromVendorListNav();
     requestAnimationFrame(function () {
       triggerMapResize();
       setTimeout(triggerMapResize, 100);
@@ -1067,46 +1126,84 @@
     return state.map;
   }
 
-  function showPanel(tabKey) {
-    const listPanel = document.getElementById("mvListPanel");
-    const mapPanel = document.getElementById("mvMapPanel");
-    if (!listPanel || !mapPanel) return;
-    listPanel.classList.toggle("active", tabKey === "list");
-    mapPanel.classList.toggle("active", tabKey === "map");
-    if (tabKey === "map") {
-      ensureMap();
-      setTimeout(triggerMapResize, 50);
+  function closeMenu() {
+    var drawer = document.getElementById("mvMenuDrawer");
+    var backdrop = document.getElementById("mvMenuBackdrop");
+    var btn = document.getElementById("mvMenuBtn");
+    if (!drawer) return;
+    drawer.classList.remove("mv-menu-drawer--open");
+    drawer.setAttribute("aria-hidden", "true");
+    if (backdrop) {
+      backdrop.classList.remove("mv-menu-backdrop--visible");
+      backdrop.setAttribute("aria-hidden", "true");
+    }
+    document.body.classList.remove("mv-menu-open");
+    if (btn) {
+      btn.setAttribute("aria-expanded", "false");
     }
   }
 
-  function initTabs() {
-    const tabs = document.querySelectorAll(".mv-tab");
-    const listPanel = document.getElementById("mvListPanel");
-    const mapPanel = document.getElementById("mvMapPanel");
-    if (!tabs.length || !listPanel || !mapPanel) return;
-    tabs.forEach((tab) => {
-      tab.addEventListener("click", function () {
-        const t = tab.getAttribute("data-tab");
-        if (!t) return;
-        tabs.forEach(function (x) {
-          x.classList.remove("active");
-          x.setAttribute("aria-selected", "false");
-        });
-        tab.classList.add("active");
-        tab.setAttribute("aria-selected", "true");
-        showPanel(t);
+  function openMenu() {
+    var drawer = document.getElementById("mvMenuDrawer");
+    var backdrop = document.getElementById("mvMenuBackdrop");
+    var btn = document.getElementById("mvMenuBtn");
+    if (!drawer) return;
+    drawer.classList.add("mv-menu-drawer--open");
+    drawer.setAttribute("aria-hidden", "false");
+    if (backdrop) {
+      backdrop.classList.add("mv-menu-backdrop--visible");
+      backdrop.setAttribute("aria-hidden", "false");
+    }
+    document.body.classList.add("mv-menu-open");
+    if (btn) {
+      btn.setAttribute("aria-expanded", "true");
+    }
+    var closeBtn = document.getElementById("mvMenuClose");
+    if (closeBtn && typeof closeBtn.focus === "function") {
+      try {
+        closeBtn.focus();
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  function initMenuDrawer() {
+    var btn = document.getElementById("mvMenuBtn");
+    var closeBtn = document.getElementById("mvMenuClose");
+    var backdrop = document.getElementById("mvMenuBackdrop");
+    var drawer = document.getElementById("mvMenuDrawer");
+    if (!btn || !drawer) return;
+    btn.addEventListener("click", function () {
+      if (drawer.classList.contains("mv-menu-drawer--open")) {
+        closeMenu();
+        btn.focus();
+      } else {
+        openMenu();
+      }
+    });
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function () {
+        closeMenu();
+        btn.focus();
       });
+    }
+    if (backdrop) {
+      backdrop.addEventListener("click", function () {
+        closeMenu();
+        btn.focus();
+      });
+    }
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Escape") return;
+      if (!drawer.classList.contains("mv-menu-drawer--open")) return;
+      closeMenu();
+      btn.focus();
     });
   }
 
+  /** Map is always visible; ensures map instance and layout after detail actions. */
   function switchToMapTab() {
-    const tabs = document.querySelectorAll(".mv-tab");
-    tabs.forEach(function (t) {
-      var isMap = t.getAttribute("data-tab") === "map";
-      t.classList.toggle("active", isMap);
-      t.setAttribute("aria-selected", isMap ? "true" : "false");
-    });
-    showPanel("map");
+    ensureMap();
+    setTimeout(triggerMapResize, 50);
   }
 
   function initDetailSheet() {
@@ -1154,7 +1251,7 @@
               slowPanTo(state.map, centerLl, VIEW_ON_MAP_PAN_DURATION_MS, function () {
                 state.map.setZoom(MAP_MAX_ZOOM);
                 if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
-                setTimeout(function () { runBoothPulseRing(id); }, 350);
+                setTimeout(function () { runBoothPulseRing(id); }, VIEW_ON_MAP_PULSE_AFTER_PAN_MS);
               });
             }
           }, delayBeforePan);
@@ -1163,26 +1260,19 @@
     }
   }
 
-  function initSearch() {
-    const searchEl = document.getElementById("mvSearch");
-    if (!searchEl) return;
-    searchEl.addEventListener("input", () => {
-      state.searchQuery = searchEl.value;
-      renderList();
-    });
-  }
-
   function loadVendors() {
     fetch("/api/vendors")
       .then((r) => r.json())
       .then((data) => {
         state.vendors = data && typeof data === "object" ? data : {};
-        renderList();
-        if (state.map) drawMapPolygons();
+        // Open detail from ?booth= first so we can set _preserveViewportAfterListDeepLink before any redraw.
+        maybeOpenBoothFromQuery();
+        if (state.map) drawMapPolygons({});
+        tryPanToBoothFromVendorListNav();
       })
       .catch(() => {
         state.vendors = {};
-        renderList();
+        maybeOpenBoothFromQuery();
       });
   }
 
@@ -1216,6 +1306,29 @@
     }
   }
 
+  var MV_DAY_KEY = "mvSelectedMapDay";
+
+  function scheduledDayOptionForValue(value) {
+    for (var i = 0; i < SCHEDULED_DAY_OPTIONS.length; i++) {
+      if (SCHEDULED_DAY_OPTIONS[i].value === value) return SCHEDULED_DAY_OPTIONS[i];
+    }
+    return null;
+  }
+
+  /** Match desktop map day label: `date` is DoW, Month D, YYYY (see core-state initMapDayFilter). */
+  function mapDayTitleForOption(opt) {
+    if (!opt) return "";
+    return opt.date || opt.full || opt.short || opt.value || "";
+  }
+
+  function updateMapDayBar() {
+    var el = document.getElementById("mvMapDayBarText");
+    if (!el) return;
+    var opt = scheduledDayOptionForValue(state.selectedMapDay);
+    var text = mapDayTitleForOption(opt);
+    el.textContent = text;
+  }
+
   function initDayFilter() {
     var sel = document.getElementById("mvMapDaySelect");
     if (!sel) return;
@@ -1223,32 +1336,71 @@
     SCHEDULED_DAY_OPTIONS.forEach(function (opt) {
       var o = document.createElement("option");
       o.value = opt.value;
-      var labelShort = (opt.dateShort != null ? opt.dateShort : null);
-      if (opt.full && labelShort) {
-        o.textContent = opt.full + " – " + labelShort;
-      } else {
-        o.textContent = labelShort || opt.date || opt.full || opt.value;
-      }
+      o.textContent = opt.date || opt.full || opt.short || opt.value;
       sel.appendChild(o);
     });
+    try {
+      var stored = localStorage.getItem(MV_DAY_KEY);
+      if (stored && SCHEDULED_DAY_ORDER.indexOf(stored) !== -1) {
+        sel.value = stored;
+      }
+    } catch (e) { /* ignore */ }
     state.selectedMapDay = sel.value || SCHEDULED_DAY_ORDER[0] || "saturday";
     if (sel.value !== state.selectedMapDay) sel.value = state.selectedMapDay;
+    updateMapDayBar();
     sel.addEventListener("change", function () {
       state.selectedMapDay = sel.value || SCHEDULED_DAY_ORDER[0] || "saturday";
+      try {
+        localStorage.setItem(MV_DAY_KEY, state.selectedMapDay);
+      } catch (e2) { /* ignore */ }
+      updateMapDayBar();
       if (state.selectedId && !getVisibleVendors()[state.selectedId]) {
         closeDetail();
       }
-      renderList();
-      if (state.map) drawMapPolygons();
+      if (state.map) drawMapPolygons({ preserveViewport: true });
+    });
+  }
+
+  function initBadgeLegend() {
+    var legend = document.getElementById("mvBadgeLegend");
+    var header = legend && legend.querySelector(".mv-legend-header");
+    if (!legend || !header) return;
+    var storageKey = "mvBadgeLegendCollapsed";
+    function syncAria() {
+      var collapsed = legend.classList.contains("collapsed");
+      header.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    }
+    try {
+      if (localStorage.getItem(storageKey) === "true") {
+        legend.classList.add("collapsed");
+      }
+    } catch (e) { /* ignore */ }
+    syncAria();
+    function toggleLegend() {
+      var collapsed = legend.classList.toggle("collapsed");
+      try {
+        localStorage.setItem(storageKey, collapsed ? "true" : "false");
+      } catch (e2) { /* ignore */ }
+      syncAria();
+    }
+    header.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      toggleLegend();
+    });
+    header.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        toggleLegend();
+      }
     });
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    initTabs();
+    initMenuDrawer();
     initDetailSheet();
-    initSearch();
     initMapControls();
     initDayFilter();
+    initBadgeLegend();
     loadVendors();
   });
 })();

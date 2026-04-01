@@ -85,6 +85,235 @@ body {
   flex: 1;
 }
 
+/* Hamburger — top right */
+.mv-menu-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 -8px 0 0;
+  padding: 0;
+  border: 1px solid var(--mv-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--mv-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mv-menu-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+.mv-menu-btn:focus-visible {
+  outline: 2px solid var(--mv-accent);
+  outline-offset: 2px;
+}
+.mv-menu-btn-icon {
+  display: block;
+}
+
+.mv-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 920;
+  background: rgba(0, 0, 0, 0.48);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.22s ease, visibility 0.22s ease;
+  pointer-events: none;
+}
+.mv-menu-backdrop.mv-menu-backdrop--visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.mv-menu-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 930;
+  width: min(100vw - 36px, 400px);
+  max-width: 100%;
+  background: linear-gradient(180deg, #0f1818, #0c1212);
+  border-left: 1px solid var(--mv-border);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  padding-top: var(--mv-safe-top);
+  padding-bottom: var(--mv-safe-bottom);
+  display: flex;
+  flex-direction: column;
+}
+.mv-menu-drawer.mv-menu-drawer--open {
+  transform: translateX(0);
+}
+
+.mv-menu-drawer-inner {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--mv-border) transparent;
+}
+
+.mv-menu-drawer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--mv-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, #0f1818 70%, transparent);
+}
+.mv-menu-drawer-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--mv-ink);
+}
+.mv-menu-close {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--mv-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mv-menu-close:hover,
+.mv-menu-close:focus-visible {
+  color: var(--mv-ink);
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.mv-menu-section {
+  margin-bottom: 20px;
+}
+.mv-menu-section:last-child {
+  margin-bottom: 0;
+}
+.mv-menu-section--legend {
+  margin-bottom: 0;
+}
+.mv-menu-section-title {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--mv-muted);
+}
+
+body.mv-menu-open {
+  overflow: hidden;
+}
+
+.mv-menu-vendors-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--mv-accent);
+  background: rgba(2, 108, 104, 0.25);
+  color: var(--mv-hi);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.mv-menu-vendors-link:active {
+  background: rgba(2, 108, 104, 0.4);
+}
+
+/* Full-page vendor list (/mobile/vendors) */
+.mv-list-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.mv-list-page-header {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 1fr) auto minmax(4.5rem, 1fr);
+  align-items: center;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.mv-back-to-map {
+  justify-self: start;
+  padding: 8px 10px;
+  margin-left: -6px;
+  color: var(--mv-accent);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+.mv-back-to-map:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+.mv-list-page-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--mv-ink);
+  text-align: center;
+  justify-self: center;
+  grid-column: 2;
+  min-width: 0;
+}
+.mv-header-trailing {
+  grid-column: 3;
+  justify-self: end;
+  width: 40px;
+  height: 8px;
+}
+.mv-list-page-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.mv-list-page-toolbar {
+  flex-shrink: 0;
+  padding: 12px 12px 14px;
+  background: var(--mv-card);
+  border-bottom: 1px solid var(--mv-border);
+}
+/* Same “Event date” block as map drawer (.mv-day-filter-wrap--menu + .mv-menu-section-title) */
+.mv-list-day-section {
+  margin: 0;
+}
+.mv-list-day-section .mv-menu-section-title {
+  margin-top: 0;
+}
+.mv-list-page .mv-search-wrap {
+  flex-shrink: 0;
+}
+.mv-booth-list--page {
+  flex: 1;
+  min-height: 0;
+}
+
 .mv-day-filter-wrap {
   display: flex;
   align-items: center;
@@ -143,7 +372,72 @@ body {
   border-color: var(--mv-accent);
 }
 
-/* Main content: list OR map fills the screen (only one visible) */
+/* Event date in drawer — card control, large touch target (section title = visible label) */
+.mv-day-filter-wrap--menu {
+  margin-left: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  position: relative;
+  padding: 0;
+  background: var(--mv-card-2);
+  border: 1px solid var(--mv-border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+.mv-day-filter-wrap--menu:focus-within {
+  border-color: var(--mv-stroke);
+}
+/* Redundant with “Event date” heading — keep for SR / for= */
+.mv-day-filter-wrap--menu .mv-day-filter-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.mv-day-filter-wrap--menu .mv-day-filter-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+  min-height: 50px;
+  height: auto;
+  padding: 14px 42px 14px 16px;
+  border-radius: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--mv-ink);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mv-day-filter-wrap--menu .mv-day-filter-select:hover {
+  background: rgba(0, 0, 0, 0.22);
+  border-color: transparent;
+}
+.mv-day-filter-wrap--menu .mv-day-filter-select:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--mv-accent);
+}
+.mv-day-filter-wrap--menu::after {
+  right: 14px;
+  width: 12px;
+  height: 8px;
+  background-size: 12px 8px;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1.5 1.5l4.5 4.5 4.5-4.5' fill='none' stroke='%239ed2cf' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* Main: map fills the area below the header */
 .mv-main {
   flex: 1;
   min-height: 0;
@@ -160,53 +454,6 @@ body {
 }
 .mv-panel.active {
   display: flex;
-}
-
-/* Bottom tab bar — compact, minimal screen use */
-.mv-tabs {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-  padding: 6px 10px;
-  padding-bottom: calc(6px + var(--mv-safe-bottom));
-  background: var(--mv-card-2);
-  border-top: 1px solid var(--mv-border);
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-}
-
-.mv-tab {
-  flex: 1;
-  max-width: 120px;
-  padding: 8px 12px;
-  min-height: 36px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid transparent;
-  border-radius: 8px;
-  color: var(--mv-muted);
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-}
-.mv-tab:hover { color: var(--mv-ink); background: rgba(255, 255, 255, 0.06); }
-.mv-tab:active { background: rgba(255, 255, 255, 0.08); }
-.mv-tab.active {
-  color: var(--mv-hi);
-  background: rgba(2, 108, 104, 0.35);
-  border-color: var(--mv-accent-2);
-}
-
-/* List panel — do not set display here; .mv-panel.active controls visibility */
-.mv-panel-list {
-  overflow: hidden;
-  flex-direction: column;
 }
 
 .mv-search-wrap {
@@ -388,18 +635,310 @@ body {
 }
 
 /* Map panel — keep .mv-panel's position:absolute so panel fills .mv-main; map and controls fill/overlay via their own absolute positioning */
+/* Floating day title — centered, width fits date text; does not pan with tiles */
+.mv-map-day-bar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 96;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: calc(100% - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  padding: 8px 16px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(18, 28, 28, 0.97), rgba(10, 18, 18, 0.95));
+  /* Match map controls + accent: teal frame, subtle hi edge, depth */
+  border: 1px solid var(--mv-accent-2);
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px rgba(10, 168, 160, 0.35),
+    0 4px 18px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(214, 255, 46, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.mv-map-day-bar-label {
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--mv-ink);
+  text-align: center;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .mv-panel-map.active .mv-map {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  /* Reduces bright flash while WebGL/tiles initialize */
+  background: var(--mv-bg);
+}
+#mvMap {
+  background: var(--mv-bg);
+}
+
+/* Collapsible badge legend — to the left of map controls (labels button column); expands upward; header fixed */
+.mv-badge-legend {
+  --mv-legend-pad-x: 10px;
+  --mv-legend-pad-y: 8px;
+  --mv-map-ctrl-w: 40px; /* matches .mv-map-ctrl */
+  --mv-map-ctrl-gap: 8px; /* space between legend and control column */
+  position: absolute;
+  /* Align bottom with .mv-map-controls so legend sits beside the stack (incl. Map labels button) */
+  bottom: calc(56px + var(--mv-safe-bottom, 0px));
+  top: auto;
+  /* Right edge = left of control column: inset + button width + gap */
+  right: calc(max(10px, env(safe-area-inset-right, 0px)) + var(--mv-map-ctrl-w) + var(--mv-map-ctrl-gap));
+  left: auto;
+  z-index: 95;
+  width: min(196px, calc(100% - 80px));
+  max-width: calc(100% - 24px);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: 0;
+  padding: var(--mv-legend-pad-y) var(--mv-legend-pad-x);
+  background: rgba(12, 18, 18, 0.94);
+  border: 1px solid var(--mv-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: gap 0.3s ease;
+  pointer-events: auto;
+}
+.mv-badge-legend:not(.collapsed) {
+  gap: 8px;
+}
+.mv-legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 2px;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mv-legend-title {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--mv-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex: 1;
+  line-height: 1.25;
+  min-height: 1.25em;
+}
+.mv-legend-toggle {
+  background: transparent;
+  border: none;
+  color: var(--mv-muted);
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.mv-legend-toggle:active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--mv-ink);
+}
+/* Path points down by default: collapsed = chevron up (“open upward”); expanded = chevron down (collapse) */
+.mv-legend-toggle svg {
+  transition: transform 0.3s ease;
+  display: block;
+  transform: rotate(180deg);
+  transform-origin: center center;
+}
+.mv-badge-legend:not(.collapsed) .mv-legend-toggle svg {
+  transform: rotate(0deg);
+}
+.mv-legend-items {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  max-height: min(42vh, 280px);
+  transition: max-height 0.35s ease, opacity 0.28s ease, padding 0.28s ease;
+  scrollbar-color: var(--mv-border) transparent;
+  scrollbar-width: thin;
+}
+.mv-badge-legend.collapsed .mv-legend-items {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.mv-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--mv-ink);
+  line-height: 1.35;
+}
+.mv-legend-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mv-legend-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.mv-legend-return-vendor-icon {
+  color: var(--mv-hi);
+}
+.mv-legend-event-staff-icon {
+  color: var(--danger);
+}
+.mv-legend-partner-icon {
+  color: #3498db;
+}
+.mv-legend-featured-icon {
+  color: #ffd700;
+}
+.mv-legend-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+  color: var(--mv-muted);
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+.mv-legend-section-label:first-child {
+  margin-top: 0;
+}
+.mv-legend-category-icon {
+  font-size: 17px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Legend in drawer — card style aligned with menu + vendor link */
+.mv-badge-legend--menu {
+  position: static;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  top: auto;
+  z-index: auto;
+  width: 100%;
+  max-width: none;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+  background: var(--mv-card-2);
+  border: 1px solid var(--mv-border);
+  border-radius: 10px;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+.mv-badge-legend--menu:not(.collapsed) {
+  gap: 0;
+  border-color: var(--mv-stroke);
+}
+.mv-badge-legend--menu .mv-legend-header {
+  min-height: 0;
+  height: auto;
+  padding: 11px 12px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid transparent;
+}
+.mv-badge-legend--menu:not(.collapsed) .mv-legend-header {
+  border-bottom-color: var(--mv-border);
+}
+.mv-badge-legend--menu.collapsed .mv-legend-header {
+  border-bottom: none;
+}
+.mv-badge-legend--menu .mv-legend-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--mv-muted);
+}
+.mv-badge-legend--menu .mv-legend-toggle {
+  width: 36px;
+  height: 36px;
+  color: var(--mv-muted);
+  border-radius: 8px;
+}
+.mv-badge-legend--menu .mv-legend-toggle:active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--mv-ink);
+}
+.mv-badge-legend--menu .mv-legend-items {
+  /* Taller scroll area when expanded — drawer still scrolls if needed */
+  max-height: min(58vh, 480px);
+  padding: 10px 12px 12px;
+  gap: 7px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.mv-badge-legend--menu .mv-legend-section-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.55px;
+  color: var(--mv-muted);
+  opacity: 0.95;
+  margin-top: 10px;
+}
+.mv-badge-legend--menu .mv-legend-section-label:first-child {
+  margin-top: 0;
+}
+.mv-badge-legend--menu .mv-legend-item {
+  font-size: 13px;
+  color: var(--mv-ink);
+}
+.mv-badge-legend--menu.collapsed .mv-legend-items {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* Map controls: center + map labels — solid background like desktop .map-overlay-buttons */
 .mv-map-controls {
   position: absolute;
   bottom: calc(56px + var(--mv-safe-bottom, 0px));
-  left: 10px;
+  right: max(10px, env(safe-area-inset-right, 0px));
+  left: auto;
   z-index: 100;
   display: flex;
   flex-direction: column;
