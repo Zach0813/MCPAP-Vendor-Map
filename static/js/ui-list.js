@@ -126,6 +126,8 @@
     } catch (_) {}
   }
 
+  MCPP.showToast = showToast;
+
   function updateScheduledDaysUI(booth) {
     const normalized = normalizeScheduledDays(booth && booth.scheduled_days);
     if (scheduledDaysDisplay) {

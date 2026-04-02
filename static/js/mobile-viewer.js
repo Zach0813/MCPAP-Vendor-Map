@@ -726,13 +726,7 @@
     if (content) content.addEventListener("transitionend", onEnd);
     setTimeout(function () {
       finishClose();
-      if (state.map && state._updateMobileBadgePositions) {
-        triggerMapResize();
-        var idleOnce = state.map.addListener("idle", function () {
-          google.maps.event.removeListener(idleOnce);
-          state._updateMobileBadgePositions();
-        });
-      }
+      scheduleMapLayoutRecovery();
     }, DETAIL_CLOSE_DURATION_MS);
   }
 
@@ -1041,6 +1035,58 @@
     }
   }
 
+  function isGoogleMapsAvailable() {
+    return !!(window.google && google.maps && typeof google.maps.Map === "function");
+  }
+
+  /**
+   * Run fn once the Maps JS API is present (async script may load after this bundle).
+   * Avoids ensureMap() returning null when "View on Map" runs before initMobileMap.
+   */
+  function whenMapsReady(fn) {
+    if (typeof fn !== "function") return;
+    if (isGoogleMapsAvailable()) {
+      fn();
+      return;
+    }
+    var attempts = 0;
+    var maxAttempts = 300;
+    var t = setInterval(function () {
+      attempts++;
+      if (isGoogleMapsAvailable()) {
+        clearInterval(t);
+        fn();
+      } else if (attempts >= maxAttempts) {
+        clearInterval(t);
+        console.warn("mobile-viewer: Google Maps API not available after waiting");
+      }
+    }, 50);
+  }
+
+  /**
+   * After tab/detail layout changes, Maps often needs resize + idle to repaint tiles and overlays.
+   * Keeps a single Map instance; does not reload the API (tile cache remains browser-managed).
+   */
+  function scheduleMapLayoutRecovery() {
+    if (!state.map || !window.google || !google.maps.event) return;
+    var map = state.map;
+    function bump() {
+      google.maps.event.trigger(map, "resize");
+    }
+    bump();
+    requestAnimationFrame(function () {
+      bump();
+      requestAnimationFrame(bump);
+    });
+    setTimeout(bump, 50);
+    setTimeout(bump, 200);
+    setTimeout(bump, 500);
+    google.maps.event.addListenerOnce(map, "idle", function () {
+      bump();
+      if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
+    });
+  }
+
   function triggerMapResize() {
     if (!state.map || !window.google || !google.maps.event) return;
     google.maps.event.trigger(state.map, "resize");
@@ -1084,7 +1130,7 @@
   function ensureMap() {
     if (state.map) return state.map;
     const mapEl = document.getElementById("mvMap");
-    if (!mapEl || !state.mapsApiReady || !window.google || !google.maps) return null;
+    if (!mapEl || !isGoogleMapsAvailable()) return null;
     const defs = getDefaults();
     const saved = readSavedMapViewport();
     const defaultCenter = (defs.center && { lat: defs.center.lat, lng: defs.center.lng }) || DEFAULT_CENTER;
@@ -1200,10 +1246,19 @@
     });
   }
 
-  /** Map is always visible; ensures map instance and layout after detail actions. */
-  function switchToMapTab() {
-    ensureMap();
-    setTimeout(triggerMapResize, 50);
+  /**
+   * Ensures the (singleton) map exists and kicks layout recovery.
+   * @param {function(): void} [onReady] runs after map is available (may wait for async Maps API).
+   */
+  function switchToMapTab(onReady) {
+    function activate() {
+      ensureMap();
+      scheduleMapLayoutRecovery();
+      setTimeout(triggerMapResize, 50);
+      if (typeof onReady === "function") onReady();
+    }
+    if (isGoogleMapsAvailable()) activate();
+    else whenMapsReady(activate);
   }
 
   function initDetailSheet() {
@@ -1234,28 +1289,28 @@
       viewOnMapBtn.addEventListener("click", function () {
         var id = state.selectedId;
         var booth = id && state.vendors ? state.vendors[id] : null;
-        var centerLl = null;
-        if (booth && booth.center && Number.isFinite(Number(booth.center.lat)) && Number.isFinite(Number(booth.center.lng))) {
-          var c = booth.center;
-          centerLl = new google.maps.LatLng(Number(c.lat), Number(c.lng));
-        }
-        switchToMapTab();
-        // Let the map panel lay out and paint before closing the card (avoids pan before map is visible).
-        setTimeout(function () {
-          if (state.map) triggerMapResize();
-          closeDetail();
-          // Pan after close animation + buffer + extra delay so user sees the map before it moves.
-          var delayBeforePan = DETAIL_CLOSE_DURATION_MS + VIEW_ON_MAP_PAN_AFTER_CLOSE_MS + VIEW_ON_MAP_DELAY_BEFORE_PAN_MS;
+        // Wait until Maps API + map exist before scheduling pan (LatLng needs google.maps).
+        switchToMapTab(function () {
+          var centerLl = null;
+          if (booth && booth.center && Number.isFinite(Number(booth.center.lat)) && Number.isFinite(Number(booth.center.lng))) {
+            var c = booth.center;
+            centerLl = new google.maps.LatLng(Number(c.lat), Number(c.lng));
+          }
           setTimeout(function () {
-            if (state.map && centerLl) {
-              slowPanTo(state.map, centerLl, VIEW_ON_MAP_PAN_DURATION_MS, function () {
-                state.map.setZoom(MAP_MAX_ZOOM);
-                if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
-                setTimeout(function () { runBoothPulseRing(id); }, VIEW_ON_MAP_PULSE_AFTER_PAN_MS);
-              });
-            }
-          }, delayBeforePan);
-        }, VIEW_ON_MAP_TAB_SETTLE_MS);
+            scheduleMapLayoutRecovery();
+            closeDetail();
+            var delayBeforePan = DETAIL_CLOSE_DURATION_MS + VIEW_ON_MAP_PAN_AFTER_CLOSE_MS + VIEW_ON_MAP_DELAY_BEFORE_PAN_MS;
+            setTimeout(function () {
+              if (state.map && centerLl) {
+                slowPanTo(state.map, centerLl, VIEW_ON_MAP_PAN_DURATION_MS, function () {
+                  state.map.setZoom(MAP_MAX_ZOOM);
+                  if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
+                  setTimeout(function () { runBoothPulseRing(id); }, VIEW_ON_MAP_PULSE_AFTER_PAN_MS);
+                });
+              }
+            }, delayBeforePan);
+          }, VIEW_ON_MAP_TAB_SETTLE_MS);
+        });
       });
     }
   }
@@ -1281,6 +1336,7 @@
     var mapPanel = document.getElementById("mvMapPanel");
     if (mapPanel && mapPanel.classList.contains("active")) {
       ensureMap();
+      scheduleMapLayoutRecovery();
       setTimeout(triggerMapResize, 150);
       setTimeout(triggerMapResize, 500);
     }
@@ -1402,5 +1458,12 @@
     initDayFilter();
     initBadgeLegend();
     loadVendors();
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden || !state.map) return;
+      scheduleMapLayoutRecovery();
+    });
+    window.addEventListener("pageshow", function (ev) {
+      if (ev.persisted && state.map) scheduleMapLayoutRecovery();
+    });
   });
 })();

@@ -7,6 +7,11 @@
 
   if (!Object.keys(els).length) return;
 
+  /** Shared toast from ui-list.js (MCPP.showToast). */
+  function toast(msg, ms, anchorEl) {
+    if (typeof MCPP.showToast === 'function') MCPP.showToast(msg, ms, anchorEl);
+  }
+
   // ------------------------------------------------------------
   // Admin editor: revert unsaved edits when leaving the booth
   // ------------------------------------------------------------
@@ -275,7 +280,7 @@
       if (MCPP.draw) MCPP.draw(S.selected);
       if (MCPP.save) await MCPP.save(false);
       
-      if (showToast) showToast('Logo removed', 2000, els.removeLogoBtn);
+      toast('Logo removed', 2000, els.removeLogoBtn);
     });
   }
 
@@ -413,6 +418,18 @@
     var dy = (size - dH) / 2;
     ctx.drawImage(img, r.sx, r.sy, r.cropW, r.cropH, dx, dy, dW, dH);
     return canvas;
+  }
+
+  /** POST /api/upload-logo (admin session). Returns server URL or null. */
+  async function postLogoUpload(blob, filename, failMessage) {
+    const formData = new FormData();
+    formData.append('file', blob, filename || 'logo.png');
+    const response = await fetch('/api/upload-logo', { method: 'POST', body: formData });
+    const result = await response.json().catch(() => ({}));
+    if (result.ok && result.url) return result.url;
+    console.error('Logo upload failed', result);
+    alert(result.error || failMessage || 'Logo upload failed. Are you logged in as admin?');
+    return null;
   }
 
   function getCenterCropRect(img) {
@@ -571,11 +588,9 @@
           }
 
           if (blobToUpload) {
-            const formData = new FormData();
-            formData.append('file', blobToUpload, blobToUpload.name || 'logo.png');
-            const response = await fetch('/api/upload-logo', { method: 'POST', body: formData });
-            const result = await response.json();
-            if (result.ok && result.url) url = result.url;
+            const name = (blobToUpload && blobToUpload.name) ? blobToUpload.name : 'logo.png';
+            const uploaded = await postLogoUpload(blobToUpload, name);
+            if (uploaded) url = uploaded;
           }
         } catch (e) {
           console.error('Crop/upload error:', e);
@@ -595,11 +610,8 @@
               canvas.toBlob(resolve, 'image/png', 0.92);
             });
             if (blob) {
-              const formData = new FormData();
-              formData.append('file', blob, 'logo.png');
-              const response = await fetch('/api/upload-logo', { method: 'POST', body: formData });
-              const result = await response.json();
-              if (result.ok && result.url) url = result.url;
+              const uploaded = await postLogoUpload(blob, 'logo.png', 'Failed to save cropped logo. Are you logged in as admin?');
+              if (uploaded) url = uploaded;
             }
           }
         } catch (e) {
@@ -619,7 +631,7 @@
       boothEdit.capture(S.selected);
       closeLogoModal();
       if (MCPP.postViewportSync) MCPP.postViewportSync();
-      if (showToast) showToast('Logo updated', 2000, els.logoModalSave);
+      toast('Logo updated', 2000, els.logoModalSave);
     });
   }
 
@@ -805,42 +817,8 @@
       // Refresh map logo badges so any logo change is visible immediately
       if (MCPP.postViewportSync) MCPP.postViewportSync();
       
-      // Show toast notification
-      showToast('Changes saved successfully');
+      toast('Changes saved successfully', 2000, els.assign);
     });
-  }
-
-  // Toast notification function
-  function showToast(message) {
-    const toast = document.createElement('div');
-    toast.className = 'save-toast';
-    toast.textContent = message;
-    
-    document.body.appendChild(toast);
-    
-    // Position centered above the assign button after appending to get toast dimensions
-    if (els.assign) {
-      const rect = els.assign.getBoundingClientRect();
-      const toastRect = toast.getBoundingClientRect();
-      toast.style.position = 'fixed';
-      toast.style.left = (rect.left + rect.width / 2 - toastRect.width / 2) + 'px';
-      toast.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
-    }
-    
-    // Trigger animation
-    requestAnimationFrame(() => {
-      toast.classList.add('show');
-    });
-    
-    // Remove after 2 seconds
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => {
-        if (toast.parentNode) {
-          toast.parentNode.removeChild(toast);
-        }
-      }, 300); // Wait for fade out animation
-    }, 2000);
   }
 
   if (els.rotationDeg) {
@@ -1023,9 +1001,141 @@
   }
 
   if (els.exportJSON) {
-    els.exportJSON.addEventListener('click', () => {
-      if (MCPP.dl) MCPP.dl('booths.json', JSON.stringify(S.booths, null, 2), 'application/json');
+    els.exportJSON.addEventListener('click', async () => {
+      if (!MCPP.dl) return;
+      try {
+        const payload = await embedUploadedLogosForExport(S.booths);
+        MCPP.dl('booths.json', JSON.stringify(payload, null, 2), 'application/json');
+      } catch (e) {
+        console.error(e);
+        alert('Export failed: ' + (e && e.message ? e.message : String(e)));
+      }
     });
+  }
+
+  function mimeFromLogoPath(path) {
+    const ext = (String(path).split('.').pop() || '').toLowerCase().split(/[?#]/)[0];
+    const map = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp' };
+    return map[ext] || 'application/octet-stream';
+  }
+
+  function mimeToFileExt(mime) {
+    const m = String(mime || '').toLowerCase();
+    if (m === 'image/png') return 'png';
+    if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
+    if (m === 'image/gif') return 'gif';
+    if (m === 'image/webp') return 'webp';
+    if (m === 'image/svg+xml') return 'svg';
+    return 'png';
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => {
+        const s = r.result;
+        const i = typeof s === 'string' ? s.indexOf(',') : -1;
+        resolve(i >= 0 ? s.slice(i + 1) : s);
+      };
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(blob);
+    });
+  }
+
+  function base64ToBlob(b64, mime) {
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime || 'image/png' });
+  }
+
+  function isInternalUploadLogoUrl(u) {
+    const t = (u || '').trim();
+    if (!t) return false;
+    if (t.indexOf('/static/uploads/') !== -1) return true;
+    try {
+      const parsed = new URL(t, window.location.origin);
+      return parsed.pathname.indexOf('/static/uploads/') !== -1 && parsed.origin === window.location.origin;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function parseDataUrlLogo(u) {
+    const t = (u || '').trim();
+    const m = /^data:(image\/[^;]+);base64,([\s\S]+)$/i.exec(t);
+    if (!m) return null;
+    return { mime: m[1], b64: m[2].replace(/\s/g, '') };
+  }
+
+  /** Deep clone booths and add logo_embed { mime, b64 } for uploaded/cropped server files and data URLs. */
+  async function embedUploadedLogosForExport(booths) {
+    const raw = JSON.parse(JSON.stringify(booths));
+    for (const id of Object.keys(raw)) {
+      const b = raw[id];
+      if (!b || typeof b !== 'object') continue;
+      delete b.logo_embed;
+      const u = (b.logo_url || '').trim();
+      if (!u) continue;
+      const dataParsed = parseDataUrlLogo(u);
+      if (dataParsed) {
+        b.logo_embed = { mime: dataParsed.mime, b64: dataParsed.b64 };
+        continue;
+      }
+      if (!isInternalUploadLogoUrl(u)) continue;
+      try {
+        const abs = (u.startsWith('http://') || u.startsWith('https://')) ? u : (window.location.origin + (u.startsWith('/') ? u : '/' + u));
+        const res = await fetch(abs, { credentials: 'same-origin' });
+        if (!res.ok) {
+          console.warn('Export: could not fetch logo for booth', id, res.status);
+          continue;
+        }
+        const blob = await res.blob();
+        const mime = (blob.type && blob.type !== 'application/octet-stream') ? blob.type : mimeFromLogoPath(u);
+        const b64 = await blobToBase64(blob);
+        b.logo_embed = { mime, b64 };
+      } catch (e) {
+        console.warn('Export: embed logo failed for booth', id, e);
+      }
+    }
+    return raw;
+  }
+
+  /** Re-upload logo_embed or data: logo_url blobs so imported JSON works on a new server. */
+  async function rehydrateImportedLogos(booths) {
+    for (const id of Object.keys(booths)) {
+      const b = booths[id];
+      if (!b || typeof b !== 'object') continue;
+      let blob = null;
+      let filename = 'logo-import.png';
+      if (b.logo_embed && typeof b.logo_embed.b64 === 'string') {
+        try {
+          blob = base64ToBlob(b.logo_embed.b64, b.logo_embed.mime);
+          filename = 'logo-import.' + mimeToFileExt(b.logo_embed.mime);
+        } catch (e) {
+          console.warn('Import: invalid logo_embed for booth', id, e);
+        }
+      } else {
+        const dp = parseDataUrlLogo((b.logo_url || '').trim());
+        if (dp) {
+          try {
+            blob = base64ToBlob(dp.b64, dp.mime);
+            filename = 'logo-import.' + mimeToFileExt(dp.mime);
+          } catch (e) {
+            console.warn('Import: invalid data URL logo for booth', id, e);
+          }
+        }
+      }
+      if (blob) {
+        const uploaded = await postLogoUpload(blob, filename, 'Could not restore logo for booth ' + id + '. Are you logged in as admin?');
+        if (uploaded) {
+          b.logo_url = uploaded;
+        } else if (b.logo_embed || parseDataUrlLogo((b.logo_url || '').trim())) {
+          b.logo_url = '';
+        }
+      }
+      delete b.logo_embed;
+    }
   }
 
   function parseVendorImportJson(text) {
@@ -1047,11 +1157,16 @@
   }
 
   if (els.menuExportVendors) {
-    els.menuExportVendors.addEventListener('click', () => {
+    els.menuExportVendors.addEventListener('click', async () => {
       if (!S.isAdmin) return;
-      if (MCPP.dl) {
+      if (!MCPP.dl) return;
+      try {
         const stamp = new Date().toISOString().slice(0, 10);
-        MCPP.dl(`mcpp-vendors-${stamp}.json`, JSON.stringify(S.booths, null, 2), 'application/json');
+        const payload = await embedUploadedLogosForExport(S.booths);
+        MCPP.dl(`mcpp-vendors-${stamp}.json`, JSON.stringify(payload, null, 2), 'application/json');
+      } catch (e) {
+        console.error(e);
+        alert('Export failed: ' + (e && e.message ? e.message : String(e)));
       }
       if (els.profileMenu) els.profileMenu.classList.add('hidden');
     });
@@ -1076,6 +1191,7 @@
         )) {
           return;
         }
+        await rehydrateImportedLogos(booths);
         S.booths = booths;
         try {
           if (MCPP.boothEdit && typeof MCPP.boothEdit.clear === 'function') MCPP.boothEdit.clear();
