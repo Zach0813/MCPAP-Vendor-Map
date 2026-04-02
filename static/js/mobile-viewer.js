@@ -452,6 +452,11 @@
   var VIEW_ON_MAP_PAN_DURATION_MS = 400;
   /** After pan + zoom settle, short wait before booth highlight pulse (detail sheet → View on Map). */
   var VIEW_ON_MAP_PULSE_AFTER_PAN_MS = 120;
+  /**
+   * Minimum time from runWhenMapReadyForAnimation() entry before starting pan/zoom.
+   * iOS Safari often needs layout + one frame after idle before setCenter updates paint.
+   */
+  var MAP_ANIM_MIN_READY_MS = 120;
 
   function nowMs() {
     return typeof performance !== "undefined" && typeof performance.now === "function"
@@ -468,6 +473,20 @@
    * @param {number} durationMs
    * @param {function} onComplete called when the pan finishes
    */
+  /**
+   * Nudge the map so WebKit / Mobile Safari actually composites camera updates (resize + zero pan).
+   * Without this, setCenter loops can run but the canvas stays frozen until the user pans.
+   */
+  function wakeMapForProgrammaticCamera(map) {
+    if (!map || !window.google) return;
+    try {
+      if (google.maps.event) google.maps.event.trigger(map, "resize");
+    } catch (e) { /* ignore */ }
+    try {
+      if (typeof map.panBy === "function") map.panBy(0, 0);
+    } catch (e2) { /* ignore */ }
+  }
+
   function slowPanTo(map, target, durationMs, onComplete) {
     if (!map || !target || durationMs <= 0) {
       if (onComplete) onComplete();
@@ -483,7 +502,12 @@
     var endLat = target.lat(), endLng = target.lng();
     var t0 = nowMs();
     var tickMs = 16;
+    var wokeCamera = false;
     function tick() {
+      if (!wokeCamera) {
+        wokeCamera = true;
+        wakeMapForProgrammaticCamera(map);
+      }
       var elapsed = nowMs() - t0;
       var t = Math.min(elapsed / durationMs, 1);
       var eased = 1 - Math.pow(1 - t, 3);
@@ -566,7 +590,12 @@
     state._suppressOverlayZoomSync = true;
     var t0 = nowMs();
     var tickMs = 16;
+    var wokeCamera = false;
     function stepZoom() {
+      if (!wokeCamera) {
+        wokeCamera = true;
+        wakeMapForProgrammaticCamera(map);
+      }
       var elapsed = nowMs() - t0;
       var t = Math.min(elapsed / durationMs, 1);
       var eased = 1 - Math.pow(1 - t, 2);
@@ -630,6 +659,7 @@
       }
       var start = map.getCenter();
       if (!start) {
+        wakeMapForProgrammaticCamera(map);
         map.panTo(centerLl);
         animateZoomTo(map, MAP_MAX_ZOOM, LIST_NAV_ZOOM_DURATION_MS, finishVendorListNavToBooth);
         return;
@@ -642,6 +672,7 @@
       var zoomScheduled = false;
       var panComplete = false;
       var zoomComplete = false;
+      var wokeCamera = false;
 
       function tryFinishVendorListNav() {
         if (!panComplete || !zoomComplete) return;
@@ -658,6 +689,10 @@
       }
 
       function panStep() {
+        if (!wokeCamera) {
+          wokeCamera = true;
+          wakeMapForProgrammaticCamera(map);
+        }
         if (panStartTime == null) panStartTime = nowMs();
         var elapsed = nowMs() - panStartTime;
         var t = Math.min(elapsed / panMs, 1);
@@ -686,23 +721,34 @@
   }
 
   function tryPanToBoothFromVendorListNav() {
-    var id = state._panToBoothIdFromList;
-    if (!id || !state.map || !window.google || !google.maps) return;
-    if (!state.vendors[id]) {
+    var boothId = state._panToBoothIdFromList;
+    if (!boothId || !state.map || !window.google || !google.maps) return;
+    if (!state.vendors[boothId]) {
       state._panToBoothIdFromList = null;
       return;
     }
     if (state._vendorListPanAwaitingIdle) return;
     state._vendorListPanAwaitingIdle = true;
-    google.maps.event.addListenerOnce(state.map, "idle", function () {
+    var done = false;
+    var idleListener = null;
+    var fallbackTimer = null;
+    function finish() {
+      if (done) return;
+      done = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      try {
+        if (idleListener) google.maps.event.removeListener(idleListener);
+      } catch (e) { /* ignore */ }
       state._vendorListPanAwaitingIdle = false;
-      id = state._panToBoothIdFromList;
-      if (!id) return;
+      if (state._panToBoothIdFromList !== boothId) return;
       state._panToBoothIdFromList = null;
+      if (!state.vendors[boothId]) return;
       setTimeout(function () {
-        runVendorListPanToBooth(id);
+        runVendorListPanToBooth(boothId);
       }, 0);
-    });
+    }
+    idleListener = google.maps.event.addListenerOnce(state.map, "idle", finish);
+    fallbackTimer = setTimeout(finish, 800);
   }
 
   function closeDetail() {
@@ -1079,10 +1125,10 @@
       google.maps.event.trigger(map, "resize");
     }
     bump();
-    requestAnimationFrame(function () {
+    setTimeout(function () {
       bump();
-      requestAnimationFrame(bump);
-    });
+      setTimeout(bump, 0);
+    }, 0);
     setTimeout(bump, 50);
     setTimeout(bump, 200);
     setTimeout(bump, 500);
@@ -1105,6 +1151,7 @@
     var done = false;
     var idleListener = null;
     var fallbackTimer = null;
+    var t0 = nowMs();
     function run() {
       if (done) return;
       done = true;
@@ -1112,14 +1159,20 @@
       try {
         if (idleListener) google.maps.event.removeListener(idleListener);
       } catch (e) { /* ignore */ }
-      triggerMapResize();
+      var elapsed = nowMs() - t0;
+      var wait = Math.max(0, MAP_ANIM_MIN_READY_MS - elapsed);
       setTimeout(function () {
         triggerMapResize();
-        fn();
-      }, 0);
+        wakeMapForProgrammaticCamera(map);
+        setTimeout(function () {
+          triggerMapResize();
+          wakeMapForProgrammaticCamera(map);
+          fn();
+        }, 0);
+      }, wait);
     }
     idleListener = google.maps.event.addListenerOnce(map, "idle", run);
-    fallbackTimer = setTimeout(run, 500);
+    fallbackTimer = setTimeout(run, 650);
   }
 
   function triggerMapResize() {
@@ -1199,11 +1252,11 @@
     drawMapPolygons({});
     updateMapLabelsButton();
     tryPanToBoothFromVendorListNav();
-    requestAnimationFrame(function () {
+    setTimeout(function () {
       triggerMapResize();
       setTimeout(triggerMapResize, 100);
       setTimeout(triggerMapResize, 350);
-    });
+    }, 0);
     return state.map;
   }
 
