@@ -453,8 +453,16 @@
   /** After pan + zoom settle, short wait before booth highlight pulse (detail sheet → View on Map). */
   var VIEW_ON_MAP_PULSE_AFTER_PAN_MS = 120;
 
+  function nowMs() {
+    return typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+  }
+
   /**
    * Pan the map from its current center to target over durationMs so the movement is visible.
+   * Uses setTimeout (not requestAnimationFrame): on many mobile browsers rAF is throttled until the user
+   * interacts with the page, so the pan would not run until the user moved the map.
    * @param {google.maps.Map} map
    * @param {google.maps.LatLng} target
    * @param {number} durationMs
@@ -473,24 +481,23 @@
     }
     var startLat = start.lat(), startLng = start.lng();
     var endLat = target.lat(), endLng = target.lng();
-    var startTime = null;
-    function step(timestamp) {
-      if (startTime == null) startTime = timestamp;
-      var elapsed = timestamp - startTime;
+    var t0 = nowMs();
+    var tickMs = 16;
+    function tick() {
+      var elapsed = nowMs() - t0;
       var t = Math.min(elapsed / durationMs, 1);
-      // ease-out cubic so the pan slows at the end
       var eased = 1 - Math.pow(1 - t, 3);
       var lat = startLat + (endLat - startLat) * eased;
       var lng = startLng + (endLng - startLng) * eased;
       map.setCenter({ lat: lat, lng: lng });
       if (t < 1) {
-        requestAnimationFrame(step);
+        setTimeout(tick, tickMs);
       } else {
         map.setCenter(target);
         if (onComplete) onComplete();
       }
     }
-    requestAnimationFrame(step);
+    setTimeout(tick, 0);
   }
 
   var MV_MAP_VIEWPORT_KEY = "mvMapViewport";
@@ -557,23 +564,23 @@
       return;
     }
     state._suppressOverlayZoomSync = true;
-    var startTime = null;
-    function step(ts) {
-      if (startTime == null) startTime = ts;
-      var t = Math.min((ts - startTime) / durationMs, 1);
+    var t0 = nowMs();
+    var tickMs = 16;
+    function stepZoom() {
+      var elapsed = nowMs() - t0;
+      var t = Math.min(elapsed / durationMs, 1);
       var eased = 1 - Math.pow(1 - t, 2);
       var z = startZ + (targetZoom - startZ) * eased;
-      /* Integer zoom avoids satellite / 2D map warping at fractional zoom. */
       map.setZoom(Math.round(z));
       if (t < 1) {
-        requestAnimationFrame(step);
+        setTimeout(stepZoom, tickMs);
       } else {
         map.setZoom(Math.round(targetZoom));
         finishOverlaySync();
         if (onDone) onDone();
       }
     }
-    requestAnimationFrame(step);
+    setTimeout(stepZoom, 0);
   }
 
   /** Pan/zoom to booth when opening /mobile?booth=id&view=map from vendor list. */
@@ -616,7 +623,7 @@
       }, LIST_NAV_PULSE_AFTER_ZOOM_MS);
     }
 
-    requestAnimationFrame(function () {
+    setTimeout(function () {
       if (!state.map) {
         state._suppressViewportSave = false;
         return;
@@ -650,9 +657,9 @@
         });
       }
 
-      function panStep(ts) {
-        if (panStartTime == null) panStartTime = ts;
-        var elapsed = ts - panStartTime;
+      function panStep() {
+        if (panStartTime == null) panStartTime = nowMs();
+        var elapsed = nowMs() - panStartTime;
         var t = Math.min(elapsed / panMs, 1);
         var eased = 1 - Math.pow(1 - t, 3);
         var lat = startLat + (endLat - startLat) * eased;
@@ -664,7 +671,7 @@
         }
 
         if (t < 1) {
-          requestAnimationFrame(panStep);
+          setTimeout(panStep, 16);
         } else {
           map.setCenter(centerLl);
           panComplete = true;
@@ -674,8 +681,8 @@
           tryFinishVendorListNav();
         }
       }
-      requestAnimationFrame(panStep);
-    });
+      setTimeout(panStep, 0);
+    }, 0);
   }
 
   function tryPanToBoothFromVendorListNav() {
@@ -692,11 +699,9 @@
       id = state._panToBoothIdFromList;
       if (!id) return;
       state._panToBoothIdFromList = null;
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          runVendorListPanToBooth(id);
-        });
-      });
+      setTimeout(function () {
+        runVendorListPanToBooth(id);
+      }, 0);
     });
   }
 
@@ -1087,6 +1092,36 @@
     });
   }
 
+  /**
+   * Run fn after resize + idle (or fallback), so programmatic pan/zoom runs when the map can paint.
+   * Mitigates blank/stuck map until user touch on some mobile WebViews after closing the detail sheet.
+   */
+  function runWhenMapReadyForAnimation(map, fn) {
+    if (!map || typeof fn !== "function") return;
+    if (!window.google || !google.maps.event) {
+      fn();
+      return;
+    }
+    var done = false;
+    var idleListener = null;
+    var fallbackTimer = null;
+    function run() {
+      if (done) return;
+      done = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      try {
+        if (idleListener) google.maps.event.removeListener(idleListener);
+      } catch (e) { /* ignore */ }
+      triggerMapResize();
+      setTimeout(function () {
+        triggerMapResize();
+        fn();
+      }, 0);
+    }
+    idleListener = google.maps.event.addListenerOnce(map, "idle", run);
+    fallbackTimer = setTimeout(run, 500);
+  }
+
   function triggerMapResize() {
     if (!state.map || !window.google || !google.maps.event) return;
     google.maps.event.trigger(state.map, "resize");
@@ -1301,13 +1336,14 @@
             closeDetail();
             var delayBeforePan = DETAIL_CLOSE_DURATION_MS + VIEW_ON_MAP_PAN_AFTER_CLOSE_MS + VIEW_ON_MAP_DELAY_BEFORE_PAN_MS;
             setTimeout(function () {
-              if (state.map && centerLl) {
+              if (!state.map || !centerLl) return;
+              runWhenMapReadyForAnimation(state.map, function () {
                 slowPanTo(state.map, centerLl, VIEW_ON_MAP_PAN_DURATION_MS, function () {
                   state.map.setZoom(MAP_MAX_ZOOM);
                   if (state._updateMobileBadgePositions) state._updateMobileBadgePositions();
                   setTimeout(function () { runBoothPulseRing(id); }, VIEW_ON_MAP_PULSE_AFTER_PAN_MS);
                 });
-              }
+              });
             }, delayBeforePan);
           }, VIEW_ON_MAP_TAB_SETTLE_MS);
         });
